@@ -1,0 +1,29 @@
+{
+  "name": "@tty-pt/hyle",
+  "version": "0.1.1",
+  "description": "TypeScript types and client helpers for the hyle WASM bridge.",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tty-pt/hyle.git",
+    "directory": "crates/hyle/pkg-src"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

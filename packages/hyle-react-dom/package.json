@@ -1,0 +1,46 @@
+{
+  "name": "@tty-pt/hyle-react-dom",
+  "version": "0.1.1",
+  "description": "Pre-built React DOM components for hyle — table, filter, and form primitives.",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tty-pt/hyle.git",
+    "directory": "packages/hyle-react-dom"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@tty-pt/hyle-react": "^0.1.1",
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "@tty-pt/hyle-react": "^0.1.1",
+    "@tty-pt/hyle": "^0.1.1",
+    "@testing-library/react": "^16",
+    "@testing-library/user-event": "^14",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "jsdom": "^26",
+    "react": "^19",
+    "react-dom": "^19",
+    "typescript": "^5",
+    "vitest": "^3"
+  }
+}

@@ -1,0 +1,27 @@
+[package]
+name = "hyle-dioxus"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Dioxus integration for hyle — reactive hooks and SSR-compatible components for data-driven UIs."
+documentation = "https://docs.rs/hyle-dioxus"
+keywords = ["dioxus", "blueprint", "hooks", "ui", "wasm"]
+categories = ["gui", "wasm", "web-programming"]
+
+[features]
+axum = ["dep:axum", "dioxus/server"]
+
+[dependencies]
+hyle = { path = "../hyle", version = "0.1" }
+dioxus = { workspace = true, features = ["html", "macro", "signals"] }
+dioxus-core = { workspace = true }
+dioxus-hooks = { workspace = true }
+dioxus-signals = { workspace = true }
+dioxus-fullstack = { version = "=0.7.7" }
+dioxus-fullstack-core = { version = "=0.7.7" }
+dioxus-query = "0.9"
+indexmap = { version = "2", features = ["serde"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = { version = "0.8", optional = true }

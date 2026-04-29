@@ -1,0 +1,32 @@
+[workspace]
+members = [
+    "crates/hyle",
+    "crates/hyle-dioxus",
+    "crates/hyle-dioxus-native",
+    "examples/dioxus",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+version = "0.1.1"
+license = "BSD-2-Clause"
+repository = "https://github.com/tty-pt/hyle"
+
+[workspace.dependencies]
+indexmap = { version = "2", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+dioxus = { version = "=0.7.7", default-features = false, features = ["launch"] }
+dioxus-core = "=0.7.7"
+dioxus-hooks = "=0.7.7"
+dioxus-signals = "=0.7.7"
+
+[profile.dev]
+opt-level = 2
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1

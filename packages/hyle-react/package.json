@@ -1,0 +1,46 @@
+{
+  "name": "@tty-pt/hyle-react",
+  "version": "0.1.1",
+  "description": "React hooks for hyle — data fetching, filtering, forms, and pagination with @tanstack/react-query.",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tty-pt/hyle.git",
+    "directory": "packages/hyle-react"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@tty-pt/hyle": "^0.1.1",
+    "@tanstack/react-query": ">=5",
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@tty-pt/hyle": "^0.1.1",
+    "@tanstack/react-query": "^5.0.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "jsdom": "^26.1.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.0"
+  }
+}

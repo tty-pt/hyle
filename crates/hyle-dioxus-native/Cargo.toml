@@ -1,0 +1,22 @@
+[package]
+name = "hyle-dioxus-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Native (non-WASM) Dioxus components for hyle — table, form, and filter UI primitives."
+documentation = "https://docs.rs/hyle-dioxus-native"
+keywords = ["dioxus", "blueprint", "ui", "native", "table"]
+categories = ["gui", "web-programming"]
+
+[dependencies]
+hyle-dioxus = { path = "../hyle-dioxus", version = "0.1" }
+hyle = { path = "../hyle", version = "0.1" }
+dioxus = { workspace = true, features = ["html", "macro", "signals"] }
+dioxus-signals = { workspace = true }
+indexmap = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = { version = "0.2", features = ["enable-interning"] }
+web-sys = { version = "0.3", features = ["HtmlFormElement", "EventTarget", "Event", "AddEventListenerOptions"] }

@@ -1,0 +1,10 @@
+[application]
+name = "rentity-dioxus-example"
+default_platform = "web"
+
+[web.app]
+title = "rentity Dioxus Example"
+
+[web.watcher]
+watch_path = ["src"]
+reload_html = true

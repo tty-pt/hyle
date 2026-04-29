@@ -1,0 +1,16 @@
+{
+  "name": "hyle",
+  "private": true,
+  "scripts": {
+    "test": "sh scripts/test.sh",
+    "test:e2e:dioxus": "playwright test --config examples/dioxus/e2e/playwright.config.ts",
+    "test:e2e:react": "playwright test --config examples/react/e2e/playwright.config.ts",
+    "build:dioxus": "cd examples/dioxus && ~/.cargo/bin/dx build --platform web",
+    "build:react": "npm run build:wasm --prefix examples/react && npm run build:vite --prefix examples/react",
+    "build": "npm run build:dioxus && npm run build:react",
+    "test:all": "npm run build && npm test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}

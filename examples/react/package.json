@@ -1,0 +1,30 @@
+{
+  "name": "hyle-react-example",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cargo build --manifest-path ../../crates/hyle/Cargo.toml --features wasm --release --target wasm32-unknown-unknown && wasm-bindgen ../../target/wasm32-unknown-unknown/release/hyle.wasm --target web --out-dir src/wasm-pkg",
+    "build:vite": "tsc && vite build",
+    "dev": "npm run build:wasm && vite --host 127.0.0.1",
+    "build": "npm run build:wasm && tsc && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "server": "node server.js",
+    "clean": "rm -rf dist node_modules src/wasm-pkg ../../target"
+  },
+  "dependencies": {
+    "@tty-pt/hyle-react": "file:../../packages/hyle-react",
+    "@tty-pt/hyle-react-dom": "file:../../packages/hyle-react-dom",
+    "@tanstack/react-query": "^5.0.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-router-dom": "^7.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4"
+  }
+}

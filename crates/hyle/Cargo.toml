@@ -1,0 +1,29 @@
+[package]
+name = "hyle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Framework-agnostic schema and query planning core for hyle."
+documentation = "https://docs.rs/hyle"
+keywords = ["blueprint", "query", "schema", "wasm", "ui"]
+categories = ["data-structures", "wasm", "web-programming"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+wasm = ["dep:wasm-bindgen", "dep:console_error_panic_hook"]
+
+[dependencies]
+indexmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+garde = { version = "0.22", features = ["regex", "pattern"] }
+regex = "1"
+wasm-bindgen = { version = "0.2", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
