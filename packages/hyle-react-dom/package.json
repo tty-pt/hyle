@@ -1,6 +1,6 @@
 {
   "name": "@tty-pt/hyle-react-dom",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Pre-built React DOM components for hyle — table, filter, and form primitives.",
   "license": "BSD-2-Clause",
   "repository": {
@@ -26,14 +26,14 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tty-pt/hyle": "^0.1.1"
+    "@tty-pt/hyle": "^0.1.3"
   },
   "peerDependencies": {
-    "@tty-pt/hyle-react": "^0.1.1",
+    "@tty-pt/hyle-react": "^0.1.3",
     "react": ">=19"
   },
   "devDependencies": {
-    "@tty-pt/hyle-react": "^0.1.1",
+    "@tty-pt/hyle-react": "^0.1.3",
     "@testing-library/react": "^16",
     "@testing-library/user-event": "^14",
     "@types/node": "^25.6.0",
