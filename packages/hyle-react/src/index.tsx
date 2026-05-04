@@ -569,6 +569,8 @@ export type HyleFiltersState<TRow extends Row = Row> = {
   filterResetKey: number;
   /** Pre-built Filter input components keyed by field name */
   Filter: Record<string, ComponentType>;
+  /** Field metadata in display order — use to build a filter bar */
+  fields: HyleDataField[];
   /**
    * Run purifyRow validation against current formData and update purifyErrors.
    * Call this before submitting or when you want inline validation in a filter form.
@@ -948,6 +950,27 @@ export function makeHyleHooks<
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [manifest, filterResetKey]);
 
+    const fields = useMemo<HyleDataField[]>(() => {
+      const cols = manifest ? hyle.columns(blueprint, manifest) : [];
+      return cols
+        .filter((col) => {
+          const changed = changeRef.current?.[col.key]?.(col.field);
+          return changed !== null;
+        })
+        .map((col) => {
+          const changed = changeRef.current?.[col.key]?.(col.field);
+          const effectiveField = (changed ?? col.field) as typeof col.field;
+          return {
+            key: col.key,
+            label: effectiveField.label ?? col.label,
+            field: effectiveField,
+            raw: null,
+            render: () => col.label,
+          };
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [manifest]);
+
     return {
       query: effectiveQuery,
       formData,
@@ -956,6 +979,7 @@ export function makeHyleHooks<
       filterClear,
       filterResetKey,
       Filter,
+      fields,
       validate,
       purifyErrors,
     };

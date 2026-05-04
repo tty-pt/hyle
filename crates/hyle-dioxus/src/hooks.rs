@@ -173,6 +173,14 @@ pub fn use_filters(
                         let s = match v {
                             Value::String(s) => s.clone(),
                             Value::Null => String::new(),
+                            Value::Array(arr) => arr
+                                .iter()
+                                .map(|item| match item {
+                                    Value::String(s) => s.clone(),
+                                    other => other.to_string(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(","),
                             other => other.to_string(),
                         };
                         (k.clone(), s)

@@ -15,12 +15,15 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./hyle.css": "./hyle.css"
   },
   "files": [
-    "dist"
+    "dist",
+    "hyle.css"
   ],
   "scripts": {
+    "prepack": "cp ../assets/hyle.css ./hyle.css",
     "build": "tsc"
   },
   "devDependencies": {

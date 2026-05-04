@@ -6,10 +6,10 @@ use hyle_dioxus_example::blueprint::make_blueprint;
 use hyle::{FieldChange, FormErrors, HyleDataState, MutateInput, Value};
 use hyle_dioxus::{
     make_fullstack_adapter, use_adapter_config, use_context_provider, use_filters, use_form,
-    use_list_with_filters, use_mutation, BoundMutateInput, HyleConfig,
+    use_list_with_filters, use_mutation, BoundMutateInput, HyleConfig, HyleFormState,
     InvalidationSignal, UseFiltersOptions, UseFormOptions,
 };
-use hyle_dioxus_native::{HyleFormFields, HyleTableFilters, HyleTablePanel};
+use hyle_dioxus_native::{HyleFormFields, HyleTableFilterBar, HyleTableFilters, HyleTablePanel};
 use serde_json::json;
 
 use hyle_dioxus_example::server::{create_user, delete_user, get_page_params, get_source, update_user};
@@ -66,7 +66,7 @@ enum Route {
 
 fn base_query(page: usize, per_page: usize) -> Query {
     Query::new("user")
-        .select(["name", "email", "role", "active"])
+        .select(["name", "email", "role", "tags", "active"])
         .sort_by("name", true)
         .page(page, per_page)
 }
@@ -85,6 +85,7 @@ fn app() -> Element {
     ));
 
     rsx! {
+        style { {hyle::CSS} }
         style { {include_str!("style.css")} }
         Router::<Route> {}
     }
@@ -129,14 +130,24 @@ fn UserList() -> Element {
                                 format!("/users/{id}/edit")
                             }),
                             header { class: "panelHeader",
-                                div { h2 { "Users" } }
-                                div { class: "panelHeaderRight",
-                                    HyleTableFilters {}
-                                    a {
-                                        href: "/users/new",
-                                        class: "primaryButton",
-                                        "+ Add"
+                                div { class: "panelTitleRow",
+                                    h2 { "Users" }
+                                    details { class: "actionMenu",
+                                        summary { class: "actionMenuToggle", "Actions" }
+                                        ul { class: "actionMenuList",
+                                            li {
+                                                a { href: "/users/new", "Add user" }
+                                            }
+                                        }
                                     }
+                                }
+                                HyleTableFilterBar {
+                                    filters,
+                                    only: vec![
+                                        "name".into(), "email".into(),
+                                        "role".into(), "tags".into(), "active".into(),
+                                    ],
+                                    HyleTableFilters {}
                                 }
                             }
                         }
@@ -159,14 +170,82 @@ fn UserList() -> Element {
     }
 }
 
+// ── UserFormPanel ─────────────────────────────────────────────────────────────
+
+#[component]
+fn UserFormPanel(
+    title: &'static str,
+    action: String,
+    form: HyleFormState,
+    errors: FormErrors,
+    #[props(optional)] delete: Option<Element>,
+) -> Element {
+    let filters = form.filters;
+    rsx! {
+        main { class: "shell",
+            section { class: "panel",
+                header { class: "panelHeader",
+                    div { class: "panelTitleRow",
+                        h2 { "{title}" }
+                        a { href: "/", class: "closeButton", "×" }
+                    }
+                }
+
+                form {
+                    method: "post",
+                    action: "{action}",
+                    onsubmit: move |e| { e.prevent_default(); form.on_submit.call(()); },
+
+                    if !errors.is_empty() {
+                        ul { class: "errors",
+                            for (field, msg) in &errors.0 {
+                                li { key: "{field}", "{field}: {msg}" }
+                            }
+                        }
+                    }
+
+                    HyleFormFields { filters }
+
+                    if let Some(ref errs) = *filters.purify_errors.read() {
+                        if !errs.is_empty() {
+                            ul { class: "errors",
+                                for err in errs {
+                                    li { key: "{err.field}", "{err.field}: {err.message}" }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(ref msg) = *form.mutation.error.read() {
+                        p { class: "errors", "{msg}" }
+                    }
+
+                    div { class: "editActions",
+                        button {
+                            r#type: "submit",
+                            class: "primaryButton",
+                            disabled: *form.mutation.is_pending.read(),
+                            { if *form.mutation.is_pending.read() { "Saving…" } else { "Save" } }
+                        }
+                        a { href: "/", "Cancel" }
+                    }
+                }
+
+                { delete }
+
+                div { class: "editDebug",
+                    DebugBlock { title: "Form data".to_string(), value: json!(*filters.form_data.read()) }
+                }
+            }
+        }
+    }
+}
+
 // ── UserNew ───────────────────────────────────────────────────────────────────
 
 #[component]
 fn UserNew() -> Element {
     let errors = try_use_context::<FormErrors>().unwrap_or_default();
-
     let form = use_form(base_query(1, 5), UseFormOptions::default());
-    let filters = form.filters;
 
     use_effect(move || {
         if *form.mutation.is_success.read() {
@@ -176,61 +255,7 @@ fn UserNew() -> Element {
     });
 
     rsx! {
-        main { class: "shell",
-            div { class: "workspace",
-                section { class: "editPanel",
-                    header { class: "panelHeader",
-                        h2 { "Add user" }
-                        a { href: "/", class: "closeButton", "×" }
-                    }
-
-                    form {
-                        method: "post",
-                        action: "/users/new",
-                        onsubmit: move |e| { e.prevent_default(); form.on_submit.call(()); },
-
-                        if !errors.is_empty() {
-                            ul { class: "errors",
-                                for (field, msg) in &errors.0 {
-                                    li { key: "{field}", "{field}: {msg}" }
-                                }
-                            }
-                        }
-
-                        HyleFormFields { filters }
-
-                        if let Some(ref errs) = *filters.purify_errors.read() {
-                            if !errs.is_empty() {
-                                ul { class: "errors",
-                                    for err in errs {
-                                        li { key: "{err.field}", "{err.field}: {err.message}" }
-                                    }
-                                }
-                            }
-                        }
-                        if let Some(ref msg) = *form.mutation.error.read() {
-                            p { class: "errors", "{msg}" }
-                        }
-
-                        div { class: "editActions",
-                            button {
-                                r#type: "submit",
-                                class: "primaryButton",
-                                disabled: *form.mutation.is_pending.read(),
-                                {
-                                    if *form.mutation.is_pending.read() { "Saving…" } else { "Save" }
-                                }
-                            }
-                            a { href: "/", "Cancel" }
-                        }
-                    }
-
-                    div { class: "editDebug",
-                        DebugBlock { title: "Form data".to_string(), value: json!(*filters.form_data.read()) }
-                    }
-                }
-            }
-        }
+        UserFormPanel { title: "Add user", action: "/users/new", form, errors }
     }
 }
 
@@ -246,7 +271,6 @@ fn UserEdit(id: u64) -> Element {
 
     let form = use_form(query, UseFormOptions::default()
         .with_change("email", |f| FieldChange::label(f, "Work email")));
-    let filters = form.filters;
     let mut_ = use_mutation("user");
 
     use_effect(move || {
@@ -260,77 +284,29 @@ fn UserEdit(id: u64) -> Element {
     let delete_uri = format!("/users/{id}/delete");
 
     rsx! {
-        main { class: "shell",
-            div { class: "workspace",
-                section { class: "editPanel",
-                    header { class: "panelHeader",
-                        h2 { "Edit user" }
-                        a { href: "/", class: "closeButton", "×" }
-                    }
-
-                    form {
-                        method: "post",
-                        action: "{edit_uri}",
-                        onsubmit: move |e| { e.prevent_default(); form.on_submit.call(()); },
-
-                        if !errors.is_empty() {
-                            ul { class: "errors",
-                                for (field, msg) in &errors.0 {
-                                    li { key: "{field}", "{field}: {msg}" }
-                                }
-                            }
+        UserFormPanel {
+            title: "Edit user",
+            action: edit_uri,
+            form,
+            errors,
+            delete: rsx! {
+                form {
+                    method: "post",
+                    action: "{delete_uri}",
+                    onsubmit: move |e| {
+                        e.prevent_default();
+                        mut_.delete.mutate.call(BoundMutateInput { id: Some(json!(id)), ..Default::default() });
+                    },
+                    div { class: "editActions",
+                        button {
+                            r#type: "submit",
+                            class: "dangerButton",
+                            disabled: *mut_.delete.is_pending.read(),
+                            { if *mut_.delete.is_pending.read() { "Deleting…" } else { "Delete" } }
                         }
-
-                        HyleFormFields { filters }
-
-                        if let Some(ref errs) = *filters.purify_errors.read() {
-                            if !errs.is_empty() {
-                                ul { class: "errors",
-                                    for err in errs {
-                                        li { key: "{err.field}", "{err.field}: {err.message}" }
-                                    }
-                                }
-                            }
-                        }
-                        if let Some(ref msg) = *form.mutation.error.read() {
-                            p { class: "errors", "{msg}" }
-                        }
-
-                        div { class: "editActions",
-                            button {
-                                r#type: "submit",
-                                class: "primaryButton",
-                                disabled: *form.mutation.is_pending.read(),
-                                {
-                                    if *form.mutation.is_pending.read() { "Saving…" } else { "Save" }
-                                }
-                            }
-                            a { href: "/", "Cancel" }
-                        }
-                    }
-
-                    form {
-                        method: "post",
-                        action: "{delete_uri}",
-                        onsubmit: move |e| {
-                            e.prevent_default();
-                            mut_.delete.mutate.call(BoundMutateInput { id: Some(json!(id)), ..Default::default() });
-                        },
-                        div { class: "editActions",
-                            button {
-                                r#type: "submit",
-                                class: "dangerButton",
-                                disabled: *mut_.delete.is_pending.read(),
-                                { if *mut_.delete.is_pending.read() { "Deleting…" } else { "Delete" } }
-                            }
-                        }
-                    }
-
-                    div { class: "editDebug",
-                        DebugBlock { title: "Form data".to_string(), value: json!(*filters.form_data.read()) }
                     }
                 }
-            }
+            },
         }
     }
 }

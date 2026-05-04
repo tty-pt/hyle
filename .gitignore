@@ -3,3 +3,6 @@
 /examples/react-advanced/src/wasm-pkg/*
 !/examples/react-advanced/src/wasm-pkg/hyle_wasm.d.ts
 node_modules
+**/dist/*
+target/*
+test-results/*

@@ -3,13 +3,13 @@ import { createServer } from "node:http";
 // ── Seed data ─────────────────────────────────────────────────────────────────
 
 const SEED_USERS = [
-  { id: 1, name: "Alice",   email: "alice@example.test",   role: "admin",  active: true  },
-  { id: 2, name: "Bruno",   email: "bruno@example.test",   role: "editor", active: true  },
-  { id: 3, name: "Carla",   email: "carla@example.test",   role: "viewer", active: false },
-  { id: 4, name: "Dmitri",  email: "dmitri@example.test",  role: "editor", active: true  },
-  { id: 5, name: "Evelyn",  email: "evelyn@example.test",  role: "viewer", active: true  },
-  { id: 6, name: "Fatima",  email: "fatima@example.test",  role: "admin",  active: false },
-  { id: 7, name: "Gustavo", email: "gustavo@example.test", role: "viewer", active: true  },
+  { id: 1, name: "Alice",   email: "alice@example.test",   role: "admin",  tags: ["rust", "web"], active: true  },
+  { id: 2, name: "Bruno",   email: "bruno@example.test",   role: "editor", tags: ["web"],          active: true  },
+  { id: 3, name: "Carla",   email: "carla@example.test",   role: "viewer", tags: [],               active: false },
+  { id: 4, name: "Dmitri",  email: "dmitri@example.test",  role: "editor", tags: ["rust"],         active: true  },
+  { id: 5, name: "Evelyn",  email: "evelyn@example.test",  role: "viewer", tags: ["web", "rust"],  active: true  },
+  { id: 6, name: "Fatima",  email: "fatima@example.test",  role: "admin",  tags: [],               active: false },
+  { id: 7, name: "Gustavo", email: "gustavo@example.test", role: "viewer", tags: ["rust"],         active: true  },
 ];
 
 const SEED_ROLES = [
@@ -18,10 +18,16 @@ const SEED_ROLES = [
   { id: "viewer", name: "Viewer" },
 ];
 
+const SEED_TAGS = [
+  { id: "rust", name: "Rust" },
+  { id: "web",  name: "Web"  },
+];
+
 // ── In-memory state ───────────────────────────────────────────────────────────
 
 const users = SEED_USERS.map((u) => ({ ...u }));
 const roles = SEED_ROLES.map((r) => ({ ...r }));
+const tags = SEED_TAGS.map((t) => ({ ...t }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +62,7 @@ function makeSource() {
   return {
     user: { result: users.map((u) => ({ ...u })), total: users.length },
     role: { result: roles.map((r) => ({ ...r })), total: roles.length },
+    tag:  { result: tags.map((t) => ({ ...t })),  total: tags.length  },
   };
 }
 
@@ -76,6 +83,7 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && url.pathname === "/__reset") {
     users.splice(0, users.length, ...SEED_USERS.map((u) => ({ ...u })));
     roles.splice(0, roles.length, ...SEED_ROLES.map((r) => ({ ...r })));
+    tags.splice(0, tags.length, ...SEED_TAGS.map((t) => ({ ...t })));
     cors(res);
     res.writeHead(200);
     res.end();
@@ -92,7 +100,7 @@ const server = createServer(async (req, res) => {
     const body = await readBody(req);
     if ("active" in body) body.active = body.active === "true" || body.active === true;
     const id = users.length > 0 ? Math.max(...users.map((u) => u.id)) + 1 : 1;
-    const user = { id, name: "", email: "", role: "viewer", active: true, ...body };
+    const user = { id, name: "", email: "", role: "viewer", tags: [], active: true, ...body };
     users.push(user);
     return json(res, 201, user);
   }

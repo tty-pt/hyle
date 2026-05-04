@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { HyleProvider } from "@tty-pt/hyle-react";
 import type { HyleClient, Column, Field, Result, Row, Manifest, Source } from "@tty-pt/hyle";
-import { HyleTableBody, HyleTableFilters, HyleTablePagination, HyleTable } from "../src/components/table";
+import { HyleTableBody, HyleTableFilterBar, HyleTableFilters, HyleTablePagination, HyleTable, HyleTablePanel } from "../src/components/table";
 import type { HyleListState, HyleFiltersState } from "@tty-pt/hyle-react";
 
 // ── Mock client ───────────────────────────────────────────────────────────────
@@ -137,6 +137,10 @@ function makeFilters(overrides: Partial<HyleFiltersState> = {}): HyleFiltersStat
     filterApply: vi.fn(),
     filterClear: vi.fn(),
     filterResetKey: 0,
+    fields: [
+      { key: "name",   label: "Name",   field: { label: "Name",   type: { kind: "primitive", primitive: "string"  } }, raw: null, render: () => "" },
+      { key: "active", label: "Active", field: { label: "Active", type: { kind: "primitive", primitive: "boolean" } }, raw: null, render: () => "" },
+    ],
     Filter: {
       name:   () => createElement("input", { "data-testid": "filter-name",   placeholder: "Name"   }),
       active: () => createElement("input", { "data-testid": "filter-active", placeholder: "Active" }),
@@ -221,7 +225,7 @@ describe("HyleTableBody", () => {
 
   it("renders filter inputs per column when filters provided", () => {
     render(
-      createElement(HyleTableBody, { blueprint, list: makeReadyList(), filters: makeFilters() }),
+      createElement(HyleTableFilterBar, { filters: makeFilters() }),
       { wrapper: wrap(client) },
     );
     expect(screen.getByTestId("filter-name")).toBeTruthy();
@@ -295,16 +299,33 @@ describe("HyleTablePagination", () => {
 // ── HyleTableFilters ──────────────────────────────────────────────────────────
 
 describe("HyleTableFilters", () => {
+  let client: HyleClient;
+  beforeEach(() => { client = makeClient(); });
+
   it("calls filterApply when Apply clicked", () => {
     const filterApply = vi.fn();
-    render(createElement(HyleTableFilters, { filters: makeFilters({ filterApply }) }));
+    render(
+      createElement(HyleTablePanel, {
+        list: makeReadyList(),
+        filters: makeFilters({ filterApply }),
+        children: createElement(HyleTableFilters),
+      }),
+      { wrapper: wrap(client) },
+    );
     fireEvent.click(screen.getByText("Apply"));
     expect(filterApply).toHaveBeenCalled();
   });
 
   it("calls filterClear when Clear clicked", () => {
     const filterClear = vi.fn();
-    render(createElement(HyleTableFilters, { filters: makeFilters({ filterClear }) }));
+    render(
+      createElement(HyleTablePanel, {
+        list: makeReadyList(),
+        filters: makeFilters({ filterClear }),
+        children: createElement(HyleTableFilters),
+      }),
+      { wrapper: wrap(client) },
+    );
     fireEvent.click(screen.getByText("Clear"));
     expect(filterClear).toHaveBeenCalled();
   });

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { HyleProvider } from "@tty-pt/hyle-react";
-import { BooleanValue, ReferenceValue } from "../src/components/values";
+import { BooleanValue, ReferenceValue, ArrayValue } from "../src/components/values";
 import type { ValueProps } from "@tty-pt/hyle-react";
 import type { HyleClient } from "@tty-pt/hyle";
 import type { Field, Result, Row } from "@tty-pt/hyle";
@@ -27,8 +27,21 @@ function makeClient(): HyleClient {
   } as unknown as HyleClient;
 }
 
+function makeDisplayClient(): HyleClient {
+  return {
+    ...makeClient(),
+    displayValue: vi.fn((_bp, _res, _base, _field, value) =>
+      Array.isArray(value) ? value.map((v) => String(v).toUpperCase()).join(", ") : String(value ?? "")
+    ),
+  } as unknown as HyleClient;
+}
+
 function Wrapper({ children }: { children: ReactNode }) {
   return createElement(HyleProvider, { client: makeClient(), children });
+}
+
+function DisplayWrapper({ children }: { children: ReactNode }) {
+  return createElement(HyleProvider, { client: makeDisplayClient(), children });
 }
 
 function makeProps(overrides: Partial<ValueProps> = {}): ValueProps {
@@ -73,5 +86,32 @@ describe("ReferenceValue", () => {
   it("renders empty string for null value when result is null", () => {
     const { container } = render(<ReferenceValue {...makeProps({ value: null, result: null })} />, { wrapper: Wrapper });
     expect(container.querySelector("span")?.textContent).toBe("");
+  });
+});
+
+describe("ArrayValue", () => {
+  it("falls back to joined raw values when result is null", () => {
+    const { container } = render(<ArrayValue {...makeProps({ value: ["a", "b", "c"], result: null })} />, { wrapper: Wrapper });
+    expect(container.querySelector("span")?.textContent).toBe("a, b, c");
+  });
+
+  it("renders empty string for null value when result is null", () => {
+    const { container } = render(<ArrayValue {...makeProps({ value: null, result: null })} />, { wrapper: Wrapper });
+    expect(container.querySelector("span")?.textContent).toBe("");
+  });
+
+  it("falls back to String() for non-array values when result is null", () => {
+    const { container } = render(<ArrayValue {...makeProps({ value: "hello", result: null })} />, { wrapper: Wrapper });
+    expect(container.querySelector("span")?.textContent).toBe("hello");
+  });
+
+  it("calls displayValue when result is provided and renders resolved labels", () => {
+    const result = { total: 0, rows: [], lookups: {} };
+    const { container } = render(
+      <ArrayValue {...makeProps({ value: ["rust", "web"], result })} />,
+      { wrapper: DisplayWrapper },
+    );
+    // displayClient uppercases each item and joins
+    expect(container.querySelector("span")?.textContent).toBe("RUST, WEB");
   });
 });

@@ -118,6 +118,17 @@ test.describe("js", () => {
     expect(page.url()).toBe("http://localhost:8080/");
   });
 
+  test("filter by tag (Array<Reference> select)", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    // Select "Rust" from the tags filter select
+    await page.locator('.columnFilter-wrap select[name="tags"]').selectOption("rust");
+    await page.locator('form[method="get"] button[type="submit"]:has-text("Apply")').first().click();
+    const rows = page.locator("tbody tr");
+    // Alice, Dmitri, Evelyn, Gustavo have the rust tag (4 users, per_page 5)
+    await expect(rows).toHaveCount(4);
+  });
+
   test("pagination — next page", async ({ page }) => {
     await page.goto("/");
     await page.locator('button[name="page"]:has-text("Next")').click();

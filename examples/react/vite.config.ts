@@ -8,6 +8,7 @@ export default defineConfig({
       "@tty-pt/hyle-react": fileURLToPath(new URL("../../packages/hyle-react/src", import.meta.url)),
       "@tty-pt/hyle-react-dom": fileURLToPath(new URL("../../packages/hyle-react-dom/src", import.meta.url)),
       "@tty-pt/hyle-react-query": fileURLToPath(new URL("../../packages/hyle-react-query/src", import.meta.url)),
+      "@tty-pt/hyle/hyle.css": fileURLToPath(new URL("../../crates/hyle/assets/hyle.css", import.meta.url)),
       "@tty-pt/hyle": fileURLToPath(new URL("../../crates/hyle/pkg-src", import.meta.url)),
       react: fileURLToPath(new URL("./node_modules/react", import.meta.url)),
       "react/jsx-runtime": fileURLToPath(

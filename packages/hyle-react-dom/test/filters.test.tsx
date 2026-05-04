@@ -6,6 +6,7 @@ import {
   FilterNumber,
   FilterBoolean,
   FilterReference,
+  FilterArray,
   FilterFile,
 } from "../src/components/filters";
 import type { FilterProps } from "@tty-pt/hyle-react";
@@ -104,30 +105,30 @@ function makeBoolProps(overrides: Partial<FilterProps<boolean | undefined>> = {}
 
 describe("FilterBoolean — default (checkbox)", () => {
   it("renders a checkbox", () => {
-    render(<FilterBoolean {...makeBoolProps({ label: "Active" })} />);
+    render(<FilterBoolean {...makeBoolProps({ label: "Active" })} appearance="checkbox" />);
     expect(screen.getByRole("checkbox", { name: "Active" })).toBeDefined();
   });
 
   it("is unchecked when value is undefined", () => {
-    render(<FilterBoolean {...makeBoolProps({ value: undefined })} />);
+    render(<FilterBoolean {...makeBoolProps({ value: undefined })} appearance="checkbox" />);
     expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
   });
 
   it("is checked when value is true", () => {
-    render(<FilterBoolean {...makeBoolProps({ value: true })} />);
+    render(<FilterBoolean {...makeBoolProps({ value: true })} appearance="checkbox" />);
     expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
   });
 
   it("calls onChange with true when checked", async () => {
     const onChange = vi.fn();
-    render(<FilterBoolean {...makeBoolProps({ value: undefined, onChange })} />);
+    render(<FilterBoolean {...makeBoolProps({ value: undefined, onChange })} appearance="checkbox" />);
     await userEvent.click(screen.getByRole("checkbox"));
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
   it("calls onChange with undefined when unchecked", async () => {
     const onChange = vi.fn();
-    render(<FilterBoolean {...makeBoolProps({ value: true, onChange })} />);
+    render(<FilterBoolean {...makeBoolProps({ value: true, onChange })} appearance="checkbox" />);
     await userEvent.click(screen.getByRole("checkbox"));
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
@@ -191,12 +192,14 @@ describe("FilterReference — default (select)", () => {
     expect(onChange).toHaveBeenCalledWith("1");
   });
 
-  it("renders only Any when result is null", () => {
+  it("renders a disabled Loading… select when result is null", () => {
     const props = makeReferenceProps({ result: null });
     render(<FilterReference {...props} />);
+    const select = screen.getByRole("combobox") as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(1);
-    expect(options[0].textContent).toBe("Any");
+    expect(options[0].textContent).toBe("Loading…");
   });
 });
 
@@ -234,5 +237,59 @@ describe("FilterFile", () => {
   it("renders a text input", () => {
     render(<FilterFile {...makeProps({ label: "File" })} />);
     expect((screen.getByRole("textbox", { name: "File" }) as HTMLInputElement).type).toBe("text");
+  });
+});
+
+// ── FilterArray ───────────────────────────────────────────────────────────────
+
+function makeArrayProps(
+  overrides: Partial<FilterProps<string>> = {},
+  lookups: Record<string, Row> = {},
+): FilterProps<string> {
+  const result: Result = {
+    total: 0,
+    rows: [],
+    lookups: { tag: lookups },
+  };
+  return {
+    label: "Tags",
+    value: "",
+    field: {
+      label: "Tags",
+      type: { kind: "array", item: { kind: "reference", reference: { entity: "tag", displayField: "name" } } },
+    },
+    fieldName: "tags",
+    result,
+    onChange: vi.fn(),
+    ...overrides,
+  };
+}
+
+describe("FilterArray", () => {
+  it("renders a fieldset with checkboxes for each lookup option", () => {
+    const props = makeArrayProps({}, {
+      rust: { id: "rust", name: "Rust" },
+      web:  { id: "web",  name: "Web"  },
+    });
+    render(<FilterArray {...props} />);
+    expect(screen.getByRole("group", { name: "Tags" })).toBeDefined();
+    expect(screen.getByRole("checkbox", { name: /Rust/ })).toBeDefined();
+    expect(screen.getByRole("checkbox", { name: /Web/ })).toBeDefined();
+  });
+
+  it("calls onChange with an array containing the selected option id when checked", async () => {
+    const onChange = vi.fn();
+    const props = makeArrayProps({ onChange, value: "" as unknown as string }, {
+      rust: { id: "rust", name: "Rust" },
+    });
+    render(<FilterArray {...props} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /Rust/ }));
+    expect(onChange).toHaveBeenCalledWith(["rust"]);
+  });
+
+  it("renders Loading… when result is null", () => {
+    const props = makeArrayProps({ result: null });
+    render(<FilterArray {...props} />);
+    expect(screen.getByText("Loading…")).toBeDefined();
   });
 });

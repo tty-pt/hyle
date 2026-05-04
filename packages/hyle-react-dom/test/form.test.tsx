@@ -80,7 +80,7 @@ describe("HyleFormFields", () => {
 
     expect(screen.getByText("Name")).toBeTruthy();
     expect(screen.getByText("Email")).toBeTruthy();
-    expect(screen.getByText("Active")).toBeTruthy();
+    // boolean fields skip the outer label — verified by testid below
     expect(screen.getByTestId("input-name")).toBeTruthy();
     expect(screen.getByTestId("input-email")).toBeTruthy();
     expect(screen.getByTestId("input-active")).toBeTruthy();

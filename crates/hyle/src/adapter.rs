@@ -35,6 +35,7 @@ use crate::{
     display_value, forma_to_query, purify_row_sync,
 };
 use crate::view::derive_columns;
+use crate::raw::rows_from_outcome;
 
 // ── Field change ──────────────────────────────────────────────────────────────
 
@@ -403,27 +404,68 @@ pub fn build_filter_fields(
     columns
         .into_iter()
         .map(|col| {
-            let options = if let FieldType::Reference { reference } = &col.field.field_type {
-                let pairs = outcome
-                    .lookups
-                    .get(&reference.entity)
-                    .map(|lookup| {
-                        lookup
-                            .iter()
-                            .map(|(id, row)| {
-                                let label = row
-                                    .get(&reference.display_field)
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or(id.as_str())
-                                    .to_owned();
-                                (id.clone(), label)
+            let options = match &col.field.field_type {
+                FieldType::Reference { reference } => {
+                    let pairs = outcome
+                        .lookups
+                        .get(&reference.entity)
+                        .map(|lookup| {
+                            lookup
+                                .iter()
+                                .map(|(id, row)| {
+                                    let label = row
+                                        .get(&reference.display_field)
+                                        .and_then(|v| v.as_str())
+                                        .unwrap_or(id.as_str())
+                                        .to_owned();
+                                    (id.clone(), label)
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    Some(pairs)
+                }
+                FieldType::Array { item } => {
+                    if let FieldType::Reference { reference } = item.as_ref() {
+                        let pairs = outcome
+                            .lookups
+                            .get(&reference.entity)
+                            .map(|lookup| {
+                                lookup
+                                    .iter()
+                                    .map(|(id, row)| {
+                                        let label = row
+                                            .get(&reference.display_field)
+                                            .and_then(|v| v.as_str())
+                                            .unwrap_or(id.as_str())
+                                            .to_owned();
+                                        (id.clone(), label)
+                                    })
+                                    .collect::<Vec<_>>()
                             })
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-                Some(pairs)
-            } else {
-                None
+                            .unwrap_or_default();
+                        Some(pairs)
+                    } else {
+                        // Scan rows for distinct primitive values of this field.
+                        let mut seen = std::collections::HashSet::new();
+                        let mut pairs = vec![];
+                        for row in rows_from_outcome(outcome) {
+                            if let Some(Value::Array(arr)) = row.get(col.key.as_str()) {
+                                for item in arr {
+                                    let s = match item {
+                                        Value::String(s) => s.clone(),
+                                        other => other.to_string(),
+                                    };
+                                    if seen.insert(s.clone()) {
+                                        pairs.push((s.clone(), s));
+                                    }
+                                }
+                            }
+                        }
+                        if pairs.is_empty() { None } else { Some(pairs) }
+                    }
+                }
+                _ => None,
             };
 
             HyleFilterField { key: col.key, label: col.label, field: col.field, options, render: None }

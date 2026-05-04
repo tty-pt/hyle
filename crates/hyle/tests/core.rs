@@ -1,6 +1,6 @@
 use hyle::{
     Blueprint, Field, FieldType, Forma, FormaContext, FormaField, FormaFieldType, Model,
-    ModelResult, Outcome, Primitive, Query, Row, ShapeField, Source, Value,
+    ModelResult, Outcome, Primitive, Query, Reference, Row, ShapeField, Source, Value,
 };
 use indexmap::IndexMap;
 use serde_json::json;
@@ -387,4 +387,107 @@ fn forma_to_query_seeds_filters_from_forma() {
 
     let manifest = blueprint().manifest(query).unwrap();
     assert_eq!(manifest.filter_fields, vec![vec!["name", "role"]]);
+}
+
+// ─── Array<Reference> field type ─────────────────────────────────────────────
+
+fn blueprint_with_tags() -> Blueprint {
+    Blueprint::new()
+        .model(
+            "user",
+            Model::new()
+                .field("name", Field::string("Name"))
+                .field(
+                    "tags",
+                    Field::array(
+                        "Tags",
+                        FieldType::Reference {
+                            reference: Reference {
+                                entity: "tag".into(),
+                                display_field: "name".into(),
+                            },
+                        },
+                    ),
+                ),
+        )
+        .model("tag", Model::new().field("name", Field::string("Tag name")))
+}
+
+#[test]
+fn array_reference_goes_in_lookups() {
+    let bp = blueprint_with_tags();
+    let manifest = bp
+        .manifest(Query::new("user").select(["name", "tags"]))
+        .unwrap();
+    assert!(manifest.lookups.contains(&"tag".to_owned()));
+}
+
+#[test]
+fn array_reference_unknown_entity_errors() {
+    let bp = Blueprint::new().model(
+        "user",
+        Model::new().field(
+            "tags",
+            Field::array(
+                "Tags",
+                FieldType::Reference {
+                    reference: Reference {
+                        entity: "nonexistent".into(),
+                        display_field: "name".into(),
+                    },
+                },
+            ),
+        ),
+    );
+    let result = bp.manifest(Query::new("user").select(["tags"]));
+    assert!(result.is_err());
+}
+
+#[test]
+fn display_value_array_reference_resolves_labels() {
+    let bp = blueprint_with_tags();
+    let manifest = bp
+        .manifest(Query::new("user").select(["name", "tags"]))
+        .unwrap();
+
+    let user = IndexMap::from([
+        ("id".to_owned(), json!(1)),
+        ("name".to_owned(), json!("Alice")),
+        ("tags".to_owned(), json!(["rust", "web"])),
+    ]);
+    let tag_rust = IndexMap::from([("id".to_owned(), json!("rust")), ("name".to_owned(), json!("Rust"))]);
+    let tag_web  = IndexMap::from([("id".to_owned(), json!("web")),  ("name".to_owned(), json!("Web"))]);
+    let mut source = Source::new();
+    source.insert("user".to_owned(), ModelResult::many(vec![user]));
+    source.insert("tag".to_owned(), ModelResult::many(vec![tag_rust, tag_web]));
+
+    let outcome = bp.resolve(&manifest, &source).unwrap();
+    let displayed = hyle::display_value(&bp, &outcome, "user", "tags", &json!(["rust", "web"]));
+    assert_eq!(displayed, "Rust, Web");
+}
+
+#[test]
+fn build_filter_fields_array_reference_has_options() {
+    use hyle::{build_filter_fields, compute_manifest};
+    let bp = blueprint_with_tags();
+    let manifest_state = compute_manifest(&bp, &Query::new("user").select(["name", "tags"]));
+    let manifest = if let hyle::HyleManifestState::Ready { manifest } = manifest_state {
+        manifest
+    } else {
+        panic!("expected ready manifest");
+    };
+
+    let tag = IndexMap::from([("id".to_owned(), json!("rust")), ("name".to_owned(), json!("Rust"))]);
+    let mut source = Source::new();
+    source.insert("user".to_owned(), ModelResult::many(vec![]));
+    source.insert("tag".to_owned(), ModelResult::many(vec![tag]));
+    let outcome = bp.resolve(&manifest, &source).unwrap();
+
+    let fields = build_filter_fields(&bp, &manifest, &outcome);
+    let tags_field = fields.iter().find(|f| f.key == "tags").unwrap();
+    assert!(tags_field.options.is_some());
+    let opts = tags_field.options.as_ref().unwrap();
+    assert_eq!(opts.len(), 1);
+    assert_eq!(opts[0].0, "rust");
+    assert_eq!(opts[0].1, "Rust");
 }

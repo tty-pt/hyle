@@ -80,6 +80,11 @@ impl InputHint {
             props: IndexMap::new(),
         }
     }
+
+    pub fn with_prop(mut self, key: impl Into<String>, value: impl Into<JsonValue>) -> Self {
+        self.props.insert(key.into(), value.into());
+        self
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

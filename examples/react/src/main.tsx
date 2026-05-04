@@ -7,7 +7,7 @@ import { blueprint } from "./demo-data";
 import App from "./App";
 import "./style.css";
 
-const hyleClient = createHyleClient(() => import("./wasm-pkg/hyle_wasm"));
+const hyleClient = createHyleClient(() => import("./wasm-pkg/hyle"));
 const queryClient = new QueryClient();
 
 createRoot(document.getElementById("root")!).render(

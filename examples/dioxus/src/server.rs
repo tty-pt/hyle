@@ -23,6 +23,7 @@ pub struct User {
     pub name: String,
     pub email: String,
     pub role: String,
+    pub tags: Vec<String>,
     pub active: bool,
 }
 
@@ -32,27 +33,33 @@ pub struct Role {
     pub name: String,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Tag {
+    pub id: String,
+    pub name: String,
+}
+
 // ── App state (server only) ───────────────────────────────────────────────────
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use server_state::{AppState, seed_roles, seed_users};
+pub use server_state::{AppState, seed_roles, seed_tags, seed_users};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod server_state {
     use std::sync::{Arc, RwLock};
     use hyle::Purifier;
     use crate::blueprint::make_blueprint;
-    use super::{User, Role};
+    use super::{User, Role, Tag};
 
     pub fn seed_users() -> Vec<User> {
         vec![
-            User { id: 1, name: "Alice".into(),   email: "alice@example.test".into(),   role: "admin".into(),  active: true  },
-            User { id: 2, name: "Bruno".into(),   email: "bruno@example.test".into(),   role: "editor".into(), active: true  },
-            User { id: 3, name: "Carla".into(),   email: "carla@example.test".into(),   role: "viewer".into(), active: false },
-            User { id: 4, name: "Dmitri".into(),  email: "dmitri@example.test".into(),  role: "editor".into(), active: true  },
-            User { id: 5, name: "Evelyn".into(),  email: "evelyn@example.test".into(),  role: "viewer".into(), active: true  },
-            User { id: 6, name: "Fatima".into(),  email: "fatima@example.test".into(),  role: "admin".into(),  active: false },
-            User { id: 7, name: "Gustavo".into(), email: "gustavo@example.test".into(), role: "viewer".into(), active: true  },
+            User { id: 1, name: "Alice".into(),   email: "alice@example.test".into(),   role: "admin".into(),  tags: vec!["rust".into(), "web".into()], active: true  },
+            User { id: 2, name: "Bruno".into(),   email: "bruno@example.test".into(),   role: "editor".into(), tags: vec!["web".into()],                active: true  },
+            User { id: 3, name: "Carla".into(),   email: "carla@example.test".into(),   role: "viewer".into(), tags: vec![],                            active: false },
+            User { id: 4, name: "Dmitri".into(),  email: "dmitri@example.test".into(),  role: "editor".into(), tags: vec!["rust".into()],               active: true  },
+            User { id: 5, name: "Evelyn".into(),  email: "evelyn@example.test".into(),  role: "viewer".into(), tags: vec!["web".into(), "rust".into()],  active: true  },
+            User { id: 6, name: "Fatima".into(),  email: "fatima@example.test".into(),  role: "admin".into(),  tags: vec![],                            active: false },
+            User { id: 7, name: "Gustavo".into(), email: "gustavo@example.test".into(), role: "viewer".into(), tags: vec!["rust".into()],               active: true  },
         ]
     }
 
@@ -64,10 +71,18 @@ mod server_state {
         ]
     }
 
+    pub fn seed_tags() -> Vec<Tag> {
+        vec![
+            Tag { id: "rust".into(), name: "Rust".into() },
+            Tag { id: "web".into(),  name: "Web".into()  },
+        ]
+    }
+
     #[derive(Clone)]
     pub struct AppState {
         pub users: Arc<RwLock<Vec<User>>>,
         pub roles: Arc<RwLock<Vec<Role>>>,
+        pub tags: Arc<RwLock<Vec<Tag>>>,
         pub blueprint: Arc<hyle::Blueprint>,
         pub purifier: Arc<Purifier>,
     }
@@ -77,6 +92,7 @@ mod server_state {
             Self {
                 users: Arc::new(RwLock::new(seed_users())),
                 roles: Arc::new(RwLock::new(seed_roles())),
+                tags: Arc::new(RwLock::new(seed_tags())),
                 blueprint: Arc::new(make_blueprint()),
                 purifier: Arc::new(Purifier::new()),
             }
@@ -107,6 +123,7 @@ pub async fn get_source() -> Result<Source, ServerFnError> {
 
     let users = state.users.read().unwrap().clone();
     let roles = state.roles.read().unwrap().clone();
+    let tags = state.tags.read().unwrap().clone();
 
     let user_rows: Vec<hyle::Row> = users
         .iter()
@@ -116,6 +133,7 @@ pub async fn get_source() -> Result<Source, ServerFnError> {
                 ("name".into(),   json!(u.name)),
                 ("email".into(),  json!(u.email)),
                 ("role".into(),   json!(u.role)),
+                ("tags".into(),   json!(u.tags)),
                 ("active".into(), json!(u.active)),
             ])
         })
@@ -131,9 +149,20 @@ pub async fn get_source() -> Result<Source, ServerFnError> {
         })
         .collect();
 
+    let tag_rows: Vec<hyle::Row> = tags
+        .iter()
+        .map(|t| {
+            IndexMap::from([
+                ("id".into(),   json!(t.id)),
+                ("name".into(), json!(t.name)),
+            ])
+        })
+        .collect();
+
     let mut source = Source::new();
     source.insert("user".into(), ModelResult::many(user_rows));
     source.insert("role".into(), ModelResult::many(role_rows));
+    source.insert("tag".into(), ModelResult::many(tag_rows));
 
     Ok(source)
 }
@@ -161,11 +190,15 @@ pub async fn create_user(input: MutateInput) -> Result<Value, ServerFnError> {
         Some("false") => false,
         _ => true,
     };
+    let tags = input.data.get("tags")
+        .map(|s| s.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect())
+        .unwrap_or_default();
     let user = User {
         id: next_id,
-        name:  input.data.get("name").cloned().unwrap_or_default(),
-        email: input.data.get("email").cloned().unwrap_or_default(),
-        role:  input.data.get("role").cloned().unwrap_or_else(|| "viewer".into()),
+        name:   input.data.get("name").cloned().unwrap_or_default(),
+        email:  input.data.get("email").cloned().unwrap_or_default(),
+        role:   input.data.get("role").cloned().unwrap_or_else(|| "viewer".into()),
+        tags,
         active,
     };
     users.push(user.clone());
@@ -196,6 +229,9 @@ pub async fn update_user(input: MutateInput) -> Result<Value, ServerFnError> {
     if let Some(name)  = input.data.get("name")  { user.name  = name.clone();  }
     if let Some(email) = input.data.get("email") { user.email = email.clone(); }
     if let Some(role)  = input.data.get("role")  { user.role  = role.clone();  }
+    if let Some(tags)  = input.data.get("tags")  {
+        user.tags = tags.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect();
+    }
     if let Some(active) = input.data.get("active") {
         user.active = active == "true";
     }
@@ -243,6 +279,18 @@ pub mod post_handlers {
         response::{IntoResponse, Redirect, Response},
     };
     use dioxus::server::FullstackState;
+
+    /// Fold a URL-encoded form with potentially repeated keys into an
+    /// `IndexMap<String, String>`, joining repeated values with `","`.
+    fn collect_form(pairs: Vec<(String, String)>) -> IndexMap<String, String> {
+        let mut map: IndexMap<String, String> = IndexMap::new();
+        for (k, v) in pairs {
+            map.entry(k)
+                .and_modify(|e| { e.push(','); e.push_str(&v); })
+                .or_insert(v);
+        }
+        map
+    }
     use hyle::row_from_form;
     use hyle_dioxus::HyleRenderer;
 
@@ -250,8 +298,9 @@ pub mod post_handlers {
         State(fullstack_state): State<FullstackState>,
         Extension(renderer): Extension<HyleRenderer>,
         Extension(app_state): Extension<AppState>,
-        Form(form): Form<IndexMap<String, String>>,
+        Form(pairs): Form<Vec<(String, String)>>,
     ) -> Response {
+        let form = collect_form(pairs);
         let row = row_from_form(&form);
         match app_state.purifier.purify_row(&app_state.blueprint, "user", &row) {
             Err(errs) => {
@@ -264,11 +313,15 @@ pub mod post_handlers {
                 let mut users = app_state.users.write().unwrap();
                 let next_id = users.iter().map(|u| u.id).max().unwrap_or(0) + 1;
                 let active = form.get("active").map(|s| s == "true").unwrap_or(true);
+        let tags = form.get("tags")
+                    .map(|s| s.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect())
+                    .unwrap_or_default();
                 users.push(User {
                     id: next_id,
-                    name:  form.get("name").cloned().unwrap_or_default(),
-                    email: form.get("email").cloned().unwrap_or_default(),
-                    role:  form.get("role").cloned().unwrap_or_else(|| "viewer".into()),
+                    name:   form.get("name").cloned().unwrap_or_default(),
+                    email:  form.get("email").cloned().unwrap_or_default(),
+                    role:   form.get("role").cloned().unwrap_or_else(|| "viewer".into()),
+                    tags,
                     active,
                 });
                 Redirect::to("/").into_response()
@@ -281,8 +334,9 @@ pub mod post_handlers {
         Extension(renderer): Extension<HyleRenderer>,
         Extension(app_state): Extension<AppState>,
         Path(id): Path<u64>,
-        Form(form): Form<IndexMap<String, String>>,
+        Form(pairs): Form<Vec<(String, String)>>,
     ) -> Response {
+        let form = collect_form(pairs);
         let row = row_from_form(&form);
         match app_state.purifier.purify_row(&app_state.blueprint, "user", &row) {
             Err(errs) => {
@@ -295,9 +349,12 @@ pub mod post_handlers {
             Ok(_) => {
                 let mut users = app_state.users.write().unwrap();
                 if let Some(user) = users.iter_mut().find(|u| u.id == id) {
-                    if let Some(v) = form.get("name")  { user.name  = v.clone(); }
-                    if let Some(v) = form.get("email") { user.email = v.clone(); }
-                    if let Some(v) = form.get("role")  { user.role  = v.clone(); }
+                    if let Some(v) = form.get("name")   { user.name  = v.clone(); }
+                    if let Some(v) = form.get("email")  { user.email = v.clone(); }
+                    if let Some(v) = form.get("role")   { user.role  = v.clone(); }
+                    if let Some(v) = form.get("tags") {
+                        user.tags = v.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect();
+                    }
                     if let Some(v) = form.get("active") { user.active = v == "true"; }
                 }
                 Redirect::to("/").into_response()
@@ -320,6 +377,7 @@ pub mod post_handlers {
     ) -> impl IntoResponse {
         *app_state.users.write().unwrap() = super::seed_users();
         *app_state.roles.write().unwrap() = super::seed_roles();
+        *app_state.tags.write().unwrap() = super::seed_tags();
         StatusCode::OK
     }
 }

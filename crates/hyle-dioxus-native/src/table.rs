@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use hyle::HyleDataState;
+use hyle::{HyleDataState, FieldType};
 use hyle_dioxus::{use_context_provider, use_hyle_components, field_type_key, HyleFiltersState, HyleListState, HyleValueProps, FilterField};
 
 #[cfg(target_arch = "wasm32")]
@@ -12,14 +12,11 @@ use web_sys::AddEventListenerOptions;
 /// Renders the `<table>` body from a `HyleListState`.
 ///
 /// - Column headers are sortable (click to sort, click again to toggle direction).
-/// - If `filters` is provided, each column header also renders a `FilterField`
-///   inline below the sort button.
 /// - Rows are clickable when `on_row_click` is supplied; the selected row is
 ///   highlighted when its id matches `selected_id`.
 #[component]
 pub fn HyleTableBody(
     list: HyleListState,
-    filters: Option<HyleFiltersState>,
     on_row_click: Option<Callback<hyle_dioxus::Row>>,
     selected_id: Option<hyle_dioxus::Value>,
     row_href: Option<Callback<hyle_dioxus::Row, String>>,
@@ -30,7 +27,7 @@ pub fn HyleTableBody(
             div { "Loading…" }
         },
         HyleDataState::Error { error, .. } => rsx! {
-            div { class: "error", "{error}" }
+            div { class: "hyle-error", "{error}" }
         },
         HyleDataState::Ready { manifest, outcome, rows, columns, .. } => {
             let manifest = manifest.clone();
@@ -42,14 +39,13 @@ pub fn HyleTableBody(
             let components = use_hyle_components();
 
             rsx! {
-                div { class: "tableWrap",
+                div { class: "hyle-table-wrap",
                     table {
                         thead {
                             tr {
                                 for col in columns.clone() {
                                     {
                                         let col_key = col.key.clone();
-                                        let col_key2 = col.key.clone();
                                         let is_active = sort_field.as_deref() == Some(&col.key);
                                         let sort_indicator = if is_active {
                                             if sort_ascending { " ▲" } else { " ▼" }
@@ -58,28 +54,18 @@ pub fn HyleTableBody(
                                         let mut sort_asc_sig = list.sort_ascending;
                                         rsx! {
                                             th { key: "{col.key}",
-                                                div { class: "headerCell",
-                                                    button {
-                                                        r#type: "button",
-                                                        class: "sortButton",
-                                                        onclick: move |_| {
-                                                            if sort_field_sig.read().as_deref() == Some(&col_key) {
-                                                                sort_asc_sig.toggle();
-                                                            } else {
-                                                                sort_field_sig.set(Some(col_key.clone()));
-                                                                sort_asc_sig.set(true);
-                                                            }
-                                                        },
-                                                        "{col.label}{sort_indicator}"
-                                                    }
-                                                    if let Some(fs) = filters {
-                                                        div { class: "columnFilter-wrap",
-                                                            FilterField {
-                                                                state: fs,
-                                                                field_key: col_key2.clone(),
-                                                            }
+                                                button {
+                                                    r#type: "button",
+                                                    class: "hyle-sort-button",
+                                                    onclick: move |_| {
+                                                        if sort_field_sig.read().as_deref() == Some(&col_key) {
+                                                            sort_asc_sig.toggle();
+                                                        } else {
+                                                            sort_field_sig.set(Some(col_key.clone()));
+                                                            sort_asc_sig.set(true);
                                                         }
-                                                    }
+                                                    },
+                                                    "{col.label}{sort_indicator}"
                                                 }
                                             }
                                         }
@@ -90,7 +76,7 @@ pub fn HyleTableBody(
                         tbody {
                             if rows.is_empty() {
                                 tr {
-                                    td { colspan: "{columns.len()}", class: "emptyState",
+                                    td { colspan: "{columns.len()}", class: "hyle-empty-state",
                                         "No results match the current filters."
                                     }
                                 }
@@ -103,9 +89,9 @@ pub fn HyleTableBody(
                                             .unwrap_or(false);
                                         let has_click = on_row_click.is_some();
                                         let class = if is_selected {
-                                            "rowSelected"
+                                            "hyle-row-selected"
                                         } else if has_click || row_href.is_some() {
-                                            "rowClickable"
+                                            "hyle-row-clickable"
                                         } else {
                                             ""
                                         };
@@ -137,10 +123,22 @@ pub fn HyleTableBody(
                                                                 outcome: outcome.clone(),
                                                                 model_name: manifest.base.clone(),
                                                             })
-                                                        } else {
-                                                            let display = hyle::display_value_from_outcome(&outcome, &col.key, &val);
-                                                            rsx! { "{display}" }
-                                                        };
+                                        } else {
+                                            let display = match &col.field.field_type {
+                                                FieldType::Array { .. } => {
+                                                    if let Some(arr) = val.as_array() {
+                                                        arr.iter()
+                                                            .map(|v| hyle::display_value_from_outcome(&outcome, &col.key, v))
+                                                            .collect::<Vec<_>>()
+                                                            .join(", ")
+                                                    } else {
+                                                        hyle::display_value_from_outcome(&outcome, &col.key, &val)
+                                                    }
+                                                }
+                                                _ => hyle::display_value_from_outcome(&outcome, &col.key, &val),
+                                            };
+                                            rsx! { "{display}" }
+                                        };
                                                         if i == 0 {
                                                             if let Some(ref url) = href {
                                                                 rsx! {
@@ -173,13 +171,40 @@ pub fn HyleTableBody(
     }
 }
 
-/// Format a raw value for display. For reference lookups the outcome already
-/// contains resolved labels, so we use `display_value` with an empty blueprint
-/// fallback, relying on the `HyleConfig` context.
-///
-/// Because `HyleTableBody` runs inside a Dioxus component tree that has
-/// `HyleConfig` in context, we read the blueprint from context.
+// ── HyleTableFilterBar ────────────────────────────────────────────────────────
 
+/// Renders a row of filter inputs above the table, one per field.
+///
+/// Reads `HyleFiltersState` from context (provided by `HyleTablePanel`) so no
+/// explicit prop threading is needed when used inside `HyleTablePanel`.
+///
+/// Pass `only` to restrict which fields are shown (by key). When `None` all
+/// fields from `filters.fields` are rendered.
+#[component]
+pub fn HyleTableFilterBar(
+    filters: HyleFiltersState,
+    only: Option<Vec<String>>,
+    children: Option<Element>,
+) -> Element {
+    let fields = filters.fields.read();
+    let visible: Vec<_> = fields.iter().filter(|f| {
+        only.as_ref().map(|keys| keys.contains(&f.key)).unwrap_or(true)
+    }).cloned().collect();
+    drop(fields);
+
+    rsx! {
+        div { class: "hyle-filter-bar",
+            for field_meta in visible {
+                FilterField {
+                    key: "{field_meta.key}",
+                    state: filters,
+                    field_key: field_meta.key.clone(),
+                }
+            }
+            {children}
+        }
+    }
+}
 
 // ── HyleTableFilters ──────────────────────────────────────────────────────────
 
@@ -196,8 +221,7 @@ pub fn HyleTableBody(
 pub fn HyleTableFilters() -> Element {
     let filters = dioxus_core::has_context::<HyleFiltersState>();
     rsx! {
-        div { class: "filterActions",
-            button { r#type: "submit", "Apply" }
+        div { class: "hyle-filter-actions",
             button {
                 r#type: "reset",
                 onclick: move |e| {
@@ -208,6 +232,7 @@ pub fn HyleTableFilters() -> Element {
                 },
                 "Clear"
             }
+            button { r#type: "submit", "Apply" }
         }
     }
 }
@@ -239,8 +264,8 @@ pub fn HyleTablePagination(list: HyleListState) -> Element {
     let next_page = page + 1;
 
     rsx! {
-        div { class: "tableFooter",
-            div { class: "pagination",
+        div { class: "hyle-table-footer",
+            div { class: "hyle-pagination",
                 button {
                     r#type: "submit",
                     name: "page",
@@ -282,7 +307,7 @@ pub fn HyleTablePagination(list: HyleListState) -> Element {
                 // user clicks this button after selecting a value.
                 button { r#type: "submit", "Apply" }
             }
-            span { class: "rowCount",
+            span { class: "hyle-row-count",
                 "{row_count} of {total} rows"
             }
         }
@@ -298,7 +323,6 @@ pub fn HyleTablePagination(list: HyleListState) -> Element {
 #[component]
 pub fn HyleTable(
     list: HyleListState,
-    filters: Option<HyleFiltersState>,
     on_row_click: Option<Callback<hyle_dioxus::Row>>,
     selected_id: Option<hyle_dioxus::Value>,
     row_href: Option<Callback<hyle_dioxus::Row, String>>,
@@ -306,7 +330,6 @@ pub fn HyleTable(
     rsx! {
         HyleTableBody {
             list,
-            filters,
             on_row_click,
             selected_id,
             row_href,
@@ -321,22 +344,25 @@ pub fn HyleTable(
 /// `HyleTablePagination` so that `HyleTableFilters` buttons, filter inputs, and
 /// pagination controls all belong to the same native form.
 ///
-/// Place your `<header>` (including `HyleTableFilters` and any other controls)
-/// as `children`; they will be rendered inside the form before the table.
+/// Place your header (including `HyleTableFilterBar`, `HyleTableFilters`, and
+/// any other controls) as `children`; they will be rendered inside the form
+/// before the table.
 ///
 /// When JS is enabled the form `onsubmit` is intercepted: `filter_apply` is
 /// called on the filters state and the page is reset to 1, so the table updates
 /// reactively without a full-page navigation.  Without JS the native GET submit
 /// proceeds unchanged (progressive enhancement).
 ///
-/// `HyleFiltersState` is provided as context so that `HyleTableFilters` and
-/// `HyleTablePagination` can read it without requiring explicit prop threading.
+/// `HyleFiltersState` is provided as context so that `HyleTableFilterBar`,
+/// `HyleTableFilters`, and `HyleTablePagination` can read it without requiring
+/// explicit prop threading.
 ///
 /// # Example
 /// ```rust,ignore
-/// HyleTablePanel { list, filters, on_row_click, selected_id,
+/// HyleTablePanel { list, filters,
 ///     header { class: "panelHeader",
 ///         h2 { "Users" }
+///         HyleTableFilterBar { only: vec!["name".into(), "role".into()] }
 ///         HyleTableFilters {}
 ///     }
 /// }
@@ -350,8 +376,9 @@ pub fn HyleTablePanel(
     row_href: Option<Callback<hyle_dioxus::Row, String>>,
     children: Element,
 ) -> Element {
-    // Provide filters state as context so HyleTableFilters / HyleTablePagination
-    // can call filter_apply / reset page without explicit prop drilling.
+    // Provide filters state as context so HyleTableFilterBar / HyleTableFilters
+    // / HyleTablePagination can call filter_apply / reset page without explicit
+    // prop drilling.
     if let Some(fs) = filters {
         use_context_provider(|| fs);
     }
@@ -397,7 +424,6 @@ pub fn HyleTablePanel(
             {children}
             HyleTableBody {
                 list,
-                filters,
                 on_row_click,
                 selected_id,
                 row_href,

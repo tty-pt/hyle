@@ -12,7 +12,15 @@ export function BooleanValue({ value }: ValueProps) {
   );
 }
 
-/** Reference values are resolved to a display string via hyle.displayValue. */
+/** Array values are resolved to display labels via hyle.displayValue. */
+export function ArrayValue({ value, column, result, modelName, blueprint }: ValueProps) {
+  const hyle = useHyle();
+  if (!result) {
+    return <span>{Array.isArray(value) ? value.join(", ") : String(value ?? "")}</span>;
+  }
+  return <span>{hyle.displayValue(blueprint, result, modelName, column.key, value)}</span>;
+}
+
 export function ReferenceValue({ value, column, result, modelName, blueprint }: ValueProps) {
   const hyle = useHyle();
   if (!result) return <span>{String(value ?? "")}</span>;

@@ -235,7 +235,7 @@ fn collect_references(
             source_model,
             source_field,
             item,
-            explicit_need,
+            true, // Array<Reference> always needs lookup resolution
             lookups,
             inlines,
         ),

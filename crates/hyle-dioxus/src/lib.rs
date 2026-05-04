@@ -28,7 +28,7 @@ pub mod axum;
 pub use axum::HyleRenderer;
 
 pub use context::{use_context_provider, use_hyle_components, HyleConfig};
-pub use filter::FilterField;
+pub use filter::{FilterField, FormFilterField};
 pub use hooks::{form_body, use_data, use_filters, use_form, use_forma, use_list, use_list_with_filters, use_manifest, use_mutation};
 pub use query::{
     make_fullstack_adapter, use_dioxus_mutation, use_fullstack_source,

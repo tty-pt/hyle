@@ -14,6 +14,15 @@ export default defineConfig({
     trace: "on-first-retry",
   },
 
+  webServer: {
+    command: "cargo run --features server --manifest-path ../Cargo.toml",
+    url: "http://localhost:8080",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    stdout: "pipe",
+    stderr: "pipe",
+  },
+
   projects: [
     {
       name: "js",

@@ -1,0 +1,356 @@
+/* ── Tokens ── */
+
+:root {
+  /* Base — 5 raw colors, everything else derives from these */
+  --hyle-color-primary: var(--color-primary, var(--color-blue-500, #3b82f6));
+  --hyle-color-danger:  var(--color-danger,  var(--color-red-600,  #dc2626));
+  --hyle-color-text:    var(--color-text,    var(--color-gray-900, #111827));
+  --hyle-color-surface: var(--color-surface, var(--color-white,    #ffffff));
+  --hyle-color-border:  var(--color-border,  var(--color-gray-200, #e5e7eb));
+
+  /* Derived */
+  --hyle-text-muted:      color-mix(in srgb, var(--hyle-color-text) 60%, var(--hyle-color-surface));
+  --hyle-text-subtle:     color-mix(in srgb, var(--hyle-color-text) 35%, var(--hyle-color-surface));
+
+  --hyle-surface-raised:  color-mix(in srgb, var(--hyle-color-text)  3%, var(--hyle-color-surface));
+  --hyle-surface-hover:   color-mix(in srgb, var(--hyle-color-text)  6%, var(--hyle-color-surface));
+  --hyle-surface-primary: color-mix(in srgb, var(--hyle-color-primary) 8%, var(--hyle-color-surface));
+
+  --hyle-border-subtle:   color-mix(in srgb, var(--hyle-color-border) 70%, var(--hyle-color-surface));
+  --hyle-border-hover:    color-mix(in srgb, var(--hyle-color-border), var(--hyle-color-text) 20%);
+
+  --hyle-primary-hover:   color-mix(in srgb, var(--hyle-color-primary) 85%, black);
+  --hyle-primary-ring:    color-mix(in srgb, var(--hyle-color-primary) 12%, transparent);
+
+  --hyle-danger-hover:    color-mix(in srgb, var(--hyle-color-danger) 85%, black);
+
+  /* Code block — intentionally fixed dark terminal palette */
+  --hyle-code-bg:         #101828;
+  --hyle-code-text:       #e4e7ec;
+
+  /* Shadow */
+  --hyle-shadow-sm:       0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Dark mode — only structural neutrals flip; primary/danger are consumer's responsibility */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hyle-color-text:    var(--color-text,    var(--color-gray-100, #f3f4f6));
+    --hyle-color-surface: var(--color-surface, var(--color-gray-900, #111827));
+    --hyle-color-border:  var(--color-border,  var(--color-gray-700, #374151));
+  }
+}
+
+.dark {
+  --hyle-color-text:    var(--color-text,    var(--color-gray-100, #f3f4f6));
+  --hyle-color-surface: var(--color-surface, var(--color-gray-900, #111827));
+  --hyle-color-border:  var(--color-border,  var(--color-gray-700, #374151));
+}
+
+/* ── Table ── */
+
+.hyle-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+.hyle-sort-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hyle-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: center;
+}
+
+.hyle-sort-button:hover {
+  color: var(--hyle-color-text);
+}
+
+.hyle-empty-state {
+  text-align: center;
+  color: var(--hyle-text-subtle);
+  padding: 48px 18px;
+  font-size: 14px;
+}
+
+.hyle-row-clickable {
+  cursor: pointer;
+}
+
+.hyle-row-clickable:hover td {
+  background: var(--hyle-surface-hover);
+}
+
+.hyle-row-selected td {
+  background: var(--hyle-surface-primary);
+}
+
+.hyle-error {
+  color: var(--hyle-color-danger);
+}
+
+/* ── Filter bar ── */
+
+.hyle-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--hyle-border-subtle);
+  background: var(--hyle-surface-raised);
+}
+
+.hyle-filter-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 120px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hyle-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hyle-filter-bar fieldset {
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 0;
+  flex: 1 1 160px;
+  background: var(--hyle-color-surface);
+}
+
+.hyle-filter-bar fieldset legend {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hyle-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 2px;
+}
+
+.hyle-filter-bar fieldset label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--hyle-color-text);
+}
+
+.hyle-filter-bar input,
+.hyle-filter-bar select {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  background: var(--hyle-color-surface);
+  color: var(--hyle-color-text);
+}
+
+.hyle-filter-bar input[type="checkbox"] {
+  height: auto;
+  width: auto;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hyle-filter-bar input:focus,
+.hyle-filter-bar select:focus {
+  outline: none;
+  border-color: var(--hyle-color-primary);
+  box-shadow: 0 0 0 2px var(--hyle-primary-ring);
+}
+
+/* ── Filter actions ── */
+
+.hyle-filter-actions {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.hyle-filter-actions button[type="submit"] {
+  height: 32px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 6px;
+  background: var(--hyle-color-primary);
+  color: var(--hyle-color-surface);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.hyle-filter-actions button[type="submit"]:hover {
+  background: var(--hyle-primary-hover);
+}
+
+.hyle-filter-actions button[type="reset"] {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 6px;
+  background: var(--hyle-color-surface);
+  color: var(--hyle-text-subtle);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.hyle-filter-actions button[type="reset"]:hover {
+  background: var(--hyle-surface-hover);
+  color: var(--hyle-color-text);
+}
+
+/* ── Table footer / pagination ── */
+
+.hyle-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-top: 1px solid var(--hyle-border-subtle);
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--hyle-surface-raised);
+  border-radius: 0 0 8px 8px;
+}
+
+.hyle-pagination {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.hyle-pagination button {
+  height: 32px;
+  min-width: 76px;
+  padding: 0 12px;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 6px;
+  background: var(--hyle-color-surface);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--hyle-color-text);
+}
+
+.hyle-pagination button:hover:not(:disabled) {
+  background: var(--hyle-surface-hover);
+  border-color: var(--hyle-border-hover);
+}
+
+.hyle-pagination button:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.hyle-pagination select {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 6px;
+  background: var(--hyle-color-surface);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  color: var(--hyle-color-text);
+}
+
+.hyle-pagination span {
+  color: var(--hyle-text-subtle);
+  padding: 0 4px;
+}
+
+.hyle-row-count {
+  color: var(--hyle-text-subtle);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* ── Form fields ── */
+
+.hyle-edit-fields {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hyle-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hyle-field-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hyle-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hyle-field-row fieldset {
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0;
+}
+
+.hyle-field-row fieldset legend {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hyle-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0 4px;
+}
+
+.hyle-field-row fieldset label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--hyle-color-text);
+}
+
+.hyle-field-row input,
+.hyle-field-row select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.hyle-field-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
