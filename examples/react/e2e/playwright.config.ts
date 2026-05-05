@@ -19,6 +19,13 @@ export default defineConfig({
       name: "js",
       use: { ...devices["Desktop Chrome"] },
     },
+    {
+      name: "no-js",
+      use: {
+        ...devices["Desktop Chrome"],
+        javaScriptEnabled: false,
+      },
+    },
   ],
 
 });

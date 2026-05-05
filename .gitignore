@@ -6,4 +6,4 @@ crates/hyle/pkg-src/hyle.css
 node_modules
 **/dist/*
 target/*
-test-results/*
+**/test-results/*

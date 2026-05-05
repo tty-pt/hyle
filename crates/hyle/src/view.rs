@@ -86,7 +86,40 @@ pub fn filter_rows(rows: &[Row], filters: &IndexMap<String, Value>) -> Vec<Row> 
                     return true;
                 }
 
-                let row_value = row.get(key).map(value_to_filter_text).unwrap_or_default();
+                let row_val = row.get(key);
+
+                // Array filter (from JS multi-select): every selected id must
+                // appear in the row's array field.
+                if let Some(Value::Array(filter_arr)) = Some(filter) {
+                    if !filter_arr.is_empty() {
+                        let filter_ids: Vec<String> = filter_arr.iter().map(value_to_filter_text).collect();
+                        if let Some(Value::Array(row_arr)) = row_val {
+                            let row_ids: Vec<String> = row_arr.iter().map(value_to_filter_text).collect();
+                            return filter_ids.iter().all(|fid| row_ids.iter().any(|rid| rid.contains(fid.as_str())));
+                        }
+                        // Array filter against a scalar — fall through to substring match
+                        let row_value = row_val.map(value_to_filter_text).unwrap_or_default();
+                        return filter_ids.iter().all(|fid| row_value.contains(fid.as_str()));
+                    }
+                    return true;
+                }
+
+                // When the filter value is a comma-joined string (produced by
+                // multi-select checkboxes or repeated URL params) AND the row
+                // stores an array, check that every selected id appears in the
+                // array.  A single value (no comma) falls through to the normal
+                // substring match against the scalar or JSON-serialised row value.
+                if let Some(Value::String(filter_str)) = Some(filter) {
+                    let parts: Vec<&str> = filter_str.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+                    if parts.len() > 1 {
+                        if let Some(Value::Array(arr)) = row_val {
+                            let arr_ids: Vec<String> = arr.iter().map(value_to_filter_text).collect();
+                            return parts.iter().all(|p| arr_ids.iter().any(|id| id.contains(&p.to_lowercase())));
+                        }
+                    }
+                }
+
+                let row_value = row_val.map(value_to_filter_text).unwrap_or_default();
                 let filter_value = value_to_filter_text(filter);
                 row_value.contains(&filter_value)
             })
@@ -223,7 +256,9 @@ pub fn display_value_from_outcome(outcome: &Outcome, _key: &str, val: &Value) ->
 }
 
 fn filter_is_empty(value: &Value) -> bool {
-    value.is_null() || value.as_str().is_some_and(str::is_empty)
+    value.is_null()
+        || value.as_str().is_some_and(str::is_empty)
+        || value.as_array().is_some_and(Vec::is_empty)
 }
 
 fn value_to_filter_text(value: &Value) -> String {
@@ -382,6 +417,106 @@ mod tests {
         assert_eq!(apply_view(rows(), &manifest).len(), 3);
     }
 
+    #[test]
+    fn filter_rows_reference_matches_by_value_not_label() {
+        // Row stores the reference id (e.g. "admin"), not the display label ("Admin").
+        // A filter of "admin" must match; a filter of "Admin" must also match (case-insensitive
+        // substring), but crucially the filter value coming from a <select value="admin"> is
+        // the id string — this test confirms the id path works.
+        let mut row_a = IndexMap::new();
+        row_a.insert("id".into(), json!(1));
+        row_a.insert("role".into(), json!("admin"));
+        let mut row_b = IndexMap::new();
+        row_b.insert("id".into(), json!(2));
+        row_b.insert("role".into(), json!("editor"));
+
+        let rows = vec![row_a, row_b];
+
+        let mut filter = IndexMap::new();
+        filter.insert("role".into(), json!("admin")); // value (id), not label ("Admin")
+        let result = filter_rows(&rows, &filter);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["role"], json!("admin"));
+    }
+
+    #[test]
+    fn filter_rows_array_reference_single_value() {
+        // Single-value array filter: filter value "rust" matches rows whose array contains "rust".
+        let mut row_a = IndexMap::new();
+        row_a.insert("id".into(), json!(1));
+        row_a.insert("tags".into(), json!(["rust", "web"]));
+        let mut row_b = IndexMap::new();
+        row_b.insert("id".into(), json!(2));
+        row_b.insert("tags".into(), json!(["web"]));
+        let mut row_c = IndexMap::new();
+        row_c.insert("id".into(), json!(3));
+        row_c.insert("tags".into(), json!(Vec::<String>::new()));
+
+        let rows = vec![row_a, row_b, row_c];
+
+        // String filter "rust" — comes from no-JS form ?tags=rust
+        let mut filter_str = IndexMap::new();
+        filter_str.insert("tags".into(), json!("rust")); // id, not label "Rust"
+        let result = filter_rows(&rows, &filter_str);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["id"], json!(1));
+
+        // Array filter ["rust"] — comes from JS checkbox selection
+        let mut filter_arr = IndexMap::new();
+        filter_arr.insert("tags".into(), json!(["rust"]));
+        let result = filter_rows(&rows, &filter_arr);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["id"], json!(1));
+    }
+
+    #[test]
+    fn filter_rows_array_reference_multi_value() {
+        // Multi-value array filter: all selected ids must be in the row's array.
+        let mut row_a = IndexMap::new();
+        row_a.insert("id".into(), json!(1));
+        row_a.insert("tags".into(), json!(["rust", "web"]));
+        let mut row_b = IndexMap::new();
+        row_b.insert("id".into(), json!(2));
+        row_b.insert("tags".into(), json!(["rust"]));
+        let mut row_c = IndexMap::new();
+        row_c.insert("id".into(), json!(3));
+        row_c.insert("tags".into(), json!(["web"]));
+
+        let rows = vec![row_a, row_b, row_c];
+
+        // Comma-joined string "rust,web" — from no-JS repeated params ?tags=rust&tags=web
+        let mut filter_str = IndexMap::new();
+        filter_str.insert("tags".into(), json!("rust,web"));
+        let result = filter_rows(&rows, &filter_str);
+        assert_eq!(result.len(), 1, "only row with both rust and web should match");
+        assert_eq!(result[0]["id"], json!(1));
+
+        // Array ["rust","web"] — from JS multi-checkbox selection
+        let mut filter_arr = IndexMap::new();
+        filter_arr.insert("tags".into(), json!(["rust", "web"]));
+        let result = filter_rows(&rows, &filter_arr);
+        assert_eq!(result.len(), 1, "only row with both rust and web should match");
+        assert_eq!(result[0]["id"], json!(1));
+    }
+
+    #[test]
+    fn filter_rows_ignores_empty_array_filter() {
+        // An empty array filter should return all rows.
+        let mut row_a = IndexMap::new();
+        row_a.insert("id".into(), json!(1));
+        row_a.insert("tags".into(), json!(["rust"]));
+        let mut row_b = IndexMap::new();
+        row_b.insert("id".into(), json!(2));
+        row_b.insert("tags".into(), json!(Vec::<String>::new()));
+
+        let rows = vec![row_a, row_b];
+
+        let mut filter = IndexMap::new();
+        filter.insert("tags".into(), json!(Vec::<String>::new()));
+        let result = filter_rows(&rows, &filter);
+        assert_eq!(result.len(), 2, "empty array filter should match all rows");
+    }
+
     // --- sort ---
 
     #[test]
@@ -484,7 +619,7 @@ mod tests {
     #[test]
     fn combined_filter_sort_paginate() {
         // 6 rows; filter keeps those with "o" in name; sort by age asc; page 1 size 2
-        let mut r = vec![
+        let r = vec![
             row(1, "Bob", 25),
             row(2, "Tom", 40),
             row(3, "Joe", 22),

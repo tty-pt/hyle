@@ -1,6 +1,6 @@
 {
   "name": "@tty-pt/hyle-react",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "React hooks for hyle — data fetching, filtering, forms, and pagination with @tanstack/react-query.",
   "license": "BSD-2-Clause",
   "repository": {

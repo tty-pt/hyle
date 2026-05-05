@@ -6,7 +6,7 @@ use dioxus::prelude::Element;
 use dioxus_signals::{Memo, ReadSignal, Signal};
 use indexmap::IndexMap;
 
-use hyle::{Blueprint, Field, FieldChange, FieldType, HyleDataState, MutateInput, Outcome, Primitive, PurifyError, Query, Source, Value};
+use hyle::{Blueprint, Field, FieldType, HyleDataState, MutateInput, Outcome, Primitive, PurifyError, Query, Source, Value};
 use serde_json::Value as JsonValue;
 
 /// Internal model name used by `use_forma` for its synthetic query.

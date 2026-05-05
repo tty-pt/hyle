@@ -16,13 +16,13 @@ body {
   color: var(--hyle-color-text);
 }
 
-.shell {
+.hyle-shell {
   width: min(1120px, calc(100vw - 32px));
   margin: 0 auto;
   padding: 32px 0;
 }
 
-.toolbar {
+.hyle-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -31,18 +31,18 @@ body {
 }
 
 /* ── Workspace ── */
-.workspace {
+.hyle-workspace {
   display: flex;
   gap: 16px;
   align-items: flex-start;
 }
 
-.workspace .panel {
+.hyle-workspace .hyle-panel {
   flex: 1 1 0;
   min-width: 0;
 }
 
-.closeButton {
+.hyle-close-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -58,18 +58,18 @@ body {
   line-height: 1;
 }
 
-.closeButton:hover {
+.hyle-close-button:hover {
   background: var(--hyle-surface-hover);
 }
 
-.editActions {
+.hyle-edit-actions {
   display: flex;
   gap: 10px;
   padding: 14px 18px;
   border-top: 1px solid var(--hyle-border-subtle);
 }
 
-.primaryButton {
+.hyle-primary-button {
   background: var(--hyle-color-primary);
   color: var(--hyle-color-surface);
   border: none;
@@ -77,18 +77,19 @@ body {
   padding: 8px 18px;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
 }
 
-.primaryButton:disabled {
+.hyle-primary-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.primaryButton:hover:not(:disabled) {
+.hyle-primary-button:hover:not(:disabled) {
   background: var(--hyle-primary-hover);
 }
 
-.dangerButton {
+.hyle-danger-button {
   background: none;
   color: var(--hyle-color-danger);
   border: 1px solid color-mix(in srgb, var(--hyle-color-danger) 40%, var(--hyle-color-surface));
@@ -99,22 +100,22 @@ body {
   margin-left: auto;
 }
 
-.dangerButton:disabled {
+.hyle-danger-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
 
-.dangerButton:hover:not(:disabled) {
+.hyle-danger-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--hyle-color-danger) 6%, var(--hyle-color-surface));
 }
 
-.editDebug {
+.hyle-edit-debug {
   border-top: 1px solid var(--hyle-border-subtle);
   overflow: hidden;
   border-radius: 0 0 8px 8px;
 }
 
-.editDebug pre {
+.hyle-edit-debug pre {
   min-height: auto;
   max-height: 160px;
   border-radius: 0 0 8px 8px;
@@ -137,7 +138,7 @@ p {
   color: var(--hyle-text-muted);
 }
 
-.toggle {
+.hyle-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -145,21 +146,21 @@ p {
   font-weight: 600;
 }
 
-.panel,
-.debugBlock {
+.hyle-panel,
+.hyle-debug-block {
   border: 1px solid var(--hyle-color-border);
   border-radius: 8px;
   background: var(--hyle-color-surface);
 }
 
-.panelHeader {
+.hyle-panel-header {
   display: flex;
   flex-direction: column;
   gap: 0;
   border-bottom: none;
 }
 
-.panelHeader > :not(.hyle-filter-bar) {
+.hyle-panel-header > :not(.hyle-filter-bar) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -168,12 +169,12 @@ p {
   border-bottom: 1px solid var(--hyle-border-subtle);
 }
 
-.panelHeader h2,
-.debugBlock h2 {
+.hyle-panel-header h2,
+.hyle-debug-block h2 {
   font-size: 16px;
 }
 
-.panelHeader span {
+.hyle-panel-header span {
   display: block;
   margin-top: 4px;
   color: var(--hyle-text-muted);
@@ -212,19 +213,19 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
-.debugGrid {
+.hyle-debug-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
 }
 
-.debugBlock {
+.hyle-debug-block {
   min-width: 0;
   overflow: hidden;
 }
 
-.debugBlock h2 {
+.hyle-debug-block h2 {
   padding: 14px 16px;
   border-bottom: 1px solid var(--hyle-border-subtle);
 }
@@ -241,29 +242,29 @@ pre {
   line-height: 1.5;
 }
 
-.panelTitleRow {
+.hyle-panel-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
 }
 
-.actionMenu {
+.hyle-action-menu {
   position: relative;
   display: inline-block;
 }
 
-.actionMenu summary {
+.hyle-action-menu summary {
   list-style: none;
   cursor: pointer;
   user-select: none;
 }
 
-.actionMenu summary::-webkit-details-marker {
+.hyle-action-menu summary::-webkit-details-marker {
   display: none;
 }
 
-.actionMenuToggle {
+.hyle-action-menu-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -279,18 +280,18 @@ pre {
   user-select: none;
 }
 
-.actionMenuToggle::after {
+.hyle-action-menu-toggle::after {
   content: "▾";
   font-size: 10px;
   transition: transform 0.15s;
   display: inline-block;
 }
 
-details[open] .actionMenuToggle::after {
+details[open] .hyle-action-menu-toggle::after {
   content: "▴";
 }
 
-.actionMenuList {
+.hyle-action-menu-list {
   position: absolute;
   right: 0;
   top: calc(100% + 4px);
@@ -305,7 +306,7 @@ details[open] .actionMenuToggle::after {
   z-index: 10;
 }
 
-.actionMenuList li a {
+.hyle-action-menu-list li a {
   display: block;
   padding: 8px 14px;
   font-size: 14px;
@@ -314,17 +315,17 @@ details[open] .actionMenuToggle::after {
   white-space: nowrap;
 }
 
-.actionMenuList li a:hover {
+.hyle-action-menu-list li a:hover {
   background: var(--hyle-surface-hover);
 }
 
-.panelHeaderRight {
+.hyle-panel-header-right {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.errors {
+.hyle-errors {
   margin: 0;
   padding: 10px 18px;
   background: color-mix(in srgb, var(--hyle-color-danger) 6%, var(--hyle-color-surface));
@@ -335,13 +336,13 @@ details[open] .actionMenuToggle::after {
 }
 
 @media (max-width: 760px) {
-  .toolbar,
-  .panelHeader {
+  .hyle-toolbar,
+  .hyle-panel-header {
     align-items: center;
     flex-direction: column;
   }
 
-  .debugGrid {
+  .hyle-debug-grid {
     grid-template-columns: 1fr;
   }
 

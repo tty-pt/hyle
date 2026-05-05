@@ -40,7 +40,7 @@ pub fn parse_query_params(
 ) -> (usize, usize, IndexMap<String, String>) {
     let mut page = 1usize;
     let mut per_page = default_per_page;
-    let mut filters = IndexMap::new();
+    let mut filters: IndexMap<String, String> = IndexMap::new();
 
     for part in query_str.split('&').filter(|s| !s.is_empty()) {
         let mut kv = part.splitn(2, '=');
@@ -52,7 +52,19 @@ pub fn parse_query_params(
         match k {
             "page"     => { if let Ok(n) = v.parse::<usize>() { page     = n.max(1); } }
             "per_page" => { if let Ok(n) = v.parse::<usize>() { per_page = n.max(1); } }
-            _          => { if !v.is_empty() { filters.insert(k.to_owned(), v); } }
+            _ => {
+                if !v.is_empty() {
+                    // Repeated keys (e.g. tags=rust&tags=web) are joined with commas
+                    // so that filter_rows can match against the comma-joined value.
+                    filters
+                        .entry(k.to_owned())
+                        .and_modify(|existing| {
+                            existing.push(',');
+                            existing.push_str(&v);
+                        })
+                        .or_insert(v);
+                }
+            }
         }
     }
 
@@ -247,6 +259,21 @@ mod tests {
         // "héllo" encoded: é = %C3%A9
         let (_, _, filters) = parse_query_params("name=h%C3%A9llo", 5);
         assert_eq!(filters["name"], "héllo");
+    }
+
+    #[test]
+    fn parse_repeated_key_joins_with_comma() {
+        // Repeated URL params (e.g. ?tags=rust&tags=web from checkboxes) must be
+        // joined with a comma so filter_rows can split them back.
+        let (_, _, filters) = parse_query_params("tags=rust&tags=web", 5);
+        assert_eq!(filters["tags"], "rust,web");
+    }
+
+    #[test]
+    fn parse_single_array_key_not_joined() {
+        // A single occurrence of a key is stored as-is (no trailing comma).
+        let (_, _, filters) = parse_query_params("tags=rust", 5);
+        assert_eq!(filters["tags"], "rust");
     }
 
     #[test]

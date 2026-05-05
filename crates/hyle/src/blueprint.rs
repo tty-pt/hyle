@@ -271,7 +271,7 @@ fn _assert_rows_send_sync(_: ModelRows) {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::field::{Field, Reference};
+    use crate::field::Field;
     use crate::raw::ModelResult;
     use serde_json::json;
 

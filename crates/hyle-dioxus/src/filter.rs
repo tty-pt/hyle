@@ -10,32 +10,22 @@ use crate::types::{field_type_key, HyleComponents, HyleFilterField, HyleFilterFi
 /// Looks up the field definition in `state.fields`, reads the current value
 /// from `state.form_data`, and calls `state.set_field` on change.
 ///
-/// By default it renders:
-/// - `Boolean` fields → `<label>` wrapping a `<select>` with "Any / Yes / No"
-/// - `Reference` fields → `<label>` wrapping a `<select>` populated from pre-resolved `options`
-/// - `Array<Reference>` fields → `<fieldset>/<legend>` with one checkbox per option
-/// - Everything else → `<label>` wrapping an `<input type="text">` (or the `input.kind` hint
-///   from the blueprint, e.g. `"search"`, `"number"`)
-///
-/// Pass `render` to replace the default for a specific field:
-///
-/// ```rust,ignore
-/// FilterField {
-///     state: filters,
-///     field_key: "role",
-///     render: |props| rsx! { MySelectInput { props } },
-/// }
-/// ```
+/// Rendering priority:
+/// 1. Per-field `render` function stored in the `HyleFilterField` (from `use_filters` change map)
+/// 2. Matching entry in the `HyleComponents` context (registered via `use_hyle_components`)
+/// 3. Built-in default based on field type:
+///    - `Boolean` → `<select>` with Any / Yes / No
+///    - `Reference` → `<select>` populated from pre-resolved options
+///    - `Array<Reference>` → `<fieldset>` with one checkbox per option
+///    - Everything else → `<input type="text">` (or the `input.kind` hint from the blueprint)
 ///
 /// # Props
 /// - `state` — the `HyleFiltersState` from `use_filters`
 /// - `field_key` — the field name to render
-/// - `render` — optional custom renderer receiving `HyleFilterFieldProps`
 #[component]
 pub fn FilterField(
     state: HyleFiltersState,
     field_key: String,
-    render: Option<fn(HyleFilterFieldProps) -> Element>,
 ) -> Element {
     let filter_field: Option<HyleFilterField> = state
         .fields
@@ -73,19 +63,7 @@ pub fn FilterField(
         });
     }
 
-    // Priority 2: render prop supplied by the caller.
-    if let Some(render_fn) = render {
-        return render_fn(HyleFilterFieldProps {
-            key: ff.key,
-            label: ff.label,
-            field: ff.field,
-            options: ff.options,
-            value,
-            set,
-        });
-    }
-
-    // Priority 3: global HyleComponents context.
+    // Priority 2: global HyleComponents context.
     let props = HyleFilterFieldProps {
         key: ff.key.clone(),
         label: ff.label.clone(),
@@ -101,7 +79,7 @@ pub fn FilterField(
         }
     }
 
-    // Priority 4: built-in default.
+    // Priority 3: built-in default.
     default_input(ff, value, set)
 }
 
@@ -112,7 +90,6 @@ pub fn FilterField(
 pub fn FormFilterField(
     state: HyleFiltersState,
     field_key: String,
-    render: Option<fn(HyleFilterFieldProps) -> Element>,
 ) -> Element {
     let filter_field: Option<HyleFilterField> = state
         .fields
@@ -139,11 +116,6 @@ pub fn FormFilterField(
     };
 
     if let Some(ref render_fn) = ff.render {
-        return render_fn(HyleFilterFieldProps {
-            key: ff.key, label: ff.label, field: ff.field, options: ff.options, value, set,
-        });
-    }
-    if let Some(render_fn) = render {
         return render_fn(HyleFilterFieldProps {
             key: ff.key, label: ff.label, field: ff.field, options: ff.options, value, set,
         });

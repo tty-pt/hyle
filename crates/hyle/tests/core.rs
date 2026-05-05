@@ -1,5 +1,5 @@
 use hyle::{
-    Blueprint, Field, FieldType, Forma, FormaContext, FormaField, FormaFieldType, Model,
+    Blueprint, Field, FieldType, Forma, FormaContext, FormaField, Model,
     ModelResult, Outcome, Primitive, Query, Reference, Row, ShapeField, Source, Value,
 };
 use indexmap::IndexMap;

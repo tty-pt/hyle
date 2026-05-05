@@ -386,8 +386,8 @@ pub fn HyleTablePanel(
         let closure = Closure::<dyn Fn(web_sys::Event)>::new(|e: web_sys::Event| {
             e.prevent_default();
         });
-        let mut opts = AddEventListenerOptions::new();
-        opts.capture(true);
+        let opts = AddEventListenerOptions::new();
+        opts.set_capture(true);
         document
             .query_selector("form[data-hyle-panel]")
             .ok()
@@ -407,10 +407,16 @@ pub fn HyleTablePanel(
             "data-hyle-panel": "true",
             onsubmit: move |e| {
                 e.prevent_default();
-                if let Some(fs) = filters {
-                    fs.filter_apply.call(());
+                // If the submit was triggered by a pagination button (name="page"),
+                // the onclick handler has already updated the page signal — don't
+                // reset it to 1 and don't re-apply filters.
+                let is_pagination = e.values().iter().any(|(k, _)| k == "page");
+                if !is_pagination {
+                    if let Some(fs) = filters {
+                        fs.filter_apply.call(());
+                    }
+                    page_sig.set(1);
                 }
-                page_sig.set(1);
             },
             {children}
             HyleTableBody {

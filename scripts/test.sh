@@ -61,17 +61,22 @@ fuser -k 4173/tcp 2>/dev/null || true
 node "$REPO/examples/react/server.js" &
 REACT_API_PID=$!
 
-npm run preview --prefix "$REPO/examples/react" &
-REACT_PREVIEW_PID=$!
+# Build the SSR bundle if not already built
+if [ ! -f "$REPO/examples/react/dist/server/entry-server.js" ]; then
+  echo "==> Building SSR bundle..."
+  npm run build:ssr --prefix "$REPO/examples/react"
+fi
+
+PORT=4173 node "$REPO/examples/react/ssr-server.js" &
+REACT_SSR_PID=$!
 
 cleanup_react() {
   echo "==> Stopping react servers..."
   kill "$REACT_API_PID" 2>/dev/null || true
-  kill "$REACT_PREVIEW_PID" 2>/dev/null || true
-  # kill any child processes spawned by vite preview / node
+  kill "$REACT_SSR_PID" 2>/dev/null || true
   pkill -P "$REACT_API_PID" 2>/dev/null || true
-  pkill -P "$REACT_PREVIEW_PID" 2>/dev/null || true
-  wait "$REACT_API_PID" "$REACT_PREVIEW_PID" 2>/dev/null || true
+  pkill -P "$REACT_SSR_PID" 2>/dev/null || true
+  wait "$REACT_API_PID" "$REACT_SSR_PID" 2>/dev/null || true
 }
 trap cleanup_react EXIT
 

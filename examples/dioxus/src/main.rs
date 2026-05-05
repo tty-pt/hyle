@@ -108,16 +108,16 @@ fn UserList() -> Element {
     let list = use_list_with_filters(filters);
 
     rsx! {
-        main { class: "shell",
-            section { class: "toolbar",
+        main { class: "hyle-shell",
+            section { class: "hyle-toolbar",
                 div {
                     h1 { "hyle Dioxus example" }
                     p { "Rust plans the query and resolves lookup data; Dioxus renders the table." }
                 }
             }
 
-            div { class: "workspace",
-                section { class: "panel",
+            div { class: "hyle-workspace",
+                section { class: "hyle-panel",
                     SuspenseBoundary {
                         fallback: |_| rsx! { p { "Loading…" } },
                         HyleTablePanel {
@@ -129,14 +129,14 @@ fn UserList() -> Element {
                                     .unwrap_or(0);
                                 format!("/users/{id}/edit")
                             }),
-                            header { class: "panelHeader",
-                                div { class: "panelTitleRow",
+                            header { class: "hyle-panel-header",
+                                div { class: "hyle-panel-title-row",
                                     h2 { "Users" }
-                                    details { class: "actionMenu",
-                                        summary { class: "actionMenuToggle", "Actions" }
-                                        ul { class: "actionMenuList",
+                                    details { class: "hyle-action-menu",
+                                        summary { class: "hyle-action-menu-toggle", "Actions" }
+                                        ul { class: "hyle-action-menu-list",
                                             li {
-                                                a { href: "/users/new", "Add user" }
+                                                a { href: "/users/new", class: "hyle-primary-button", "Add user" }
                                             }
                                         }
                                     }
@@ -155,7 +155,7 @@ fn UserList() -> Element {
                 }
             }
 
-            section { class: "debugGrid",
+            section { class: "hyle-debug-grid",
                 {
                     match &*list.data.read() {
                         HyleDataState::Ready { manifest, outcome, .. } => rsx! {
@@ -182,12 +182,12 @@ fn UserFormPanel(
 ) -> Element {
     let filters = form.filters;
     rsx! {
-        main { class: "shell",
-            section { class: "panel",
-                header { class: "panelHeader",
-                    div { class: "panelTitleRow",
+        main { class: "hyle-shell",
+            section { class: "hyle-panel",
+                header { class: "hyle-panel-header",
+                    div { class: "hyle-panel-title-row",
                         h2 { "{title}" }
-                        a { href: "/", class: "closeButton", "×" }
+                        a { href: "/", class: "hyle-close-button", "×" }
                     }
                 }
 
@@ -197,7 +197,7 @@ fn UserFormPanel(
                     onsubmit: move |e| { e.prevent_default(); form.on_submit.call(()); },
 
                     if !errors.is_empty() {
-                        ul { class: "errors",
+                        ul { class: "hyle-errors",
                             for (field, msg) in &errors.0 {
                                 li { key: "{field}", "{field}: {msg}" }
                             }
@@ -208,7 +208,7 @@ fn UserFormPanel(
 
                     if let Some(ref errs) = *filters.purify_errors.read() {
                         if !errs.is_empty() {
-                            ul { class: "errors",
+                            ul { class: "hyle-errors",
                                 for err in errs {
                                     li { key: "{err.field}", "{err.field}: {err.message}" }
                                 }
@@ -216,13 +216,13 @@ fn UserFormPanel(
                         }
                     }
                     if let Some(ref msg) = *form.mutation.error.read() {
-                        p { class: "errors", "{msg}" }
+                        p { class: "hyle-errors", "{msg}" }
                     }
 
-                    div { class: "editActions",
+                    div { class: "hyle-edit-actions",
                         button {
                             r#type: "submit",
-                            class: "primaryButton",
+                            class: "hyle-primary-button",
                             disabled: *form.mutation.is_pending.read(),
                             { if *form.mutation.is_pending.read() { "Saving…" } else { "Save" } }
                         }
@@ -232,7 +232,7 @@ fn UserFormPanel(
 
                 { delete }
 
-                div { class: "editDebug",
+                div { class: "hyle-edit-debug",
                     DebugBlock { title: "Form data".to_string(), value: json!(*filters.form_data.read()) }
                 }
             }
@@ -297,10 +297,10 @@ fn UserEdit(id: u64) -> Element {
                         e.prevent_default();
                         mut_.delete.mutate.call(BoundMutateInput { id: Some(json!(id)), ..Default::default() });
                     },
-                    div { class: "editActions",
+                    div { class: "hyle-edit-actions",
                         button {
                             r#type: "submit",
-                            class: "dangerButton",
+                            class: "hyle-danger-button",
                             disabled: *mut_.delete.is_pending.read(),
                             { if *mut_.delete.is_pending.read() { "Deleting…" } else { "Delete" } }
                         }
@@ -316,7 +316,7 @@ fn UserEdit(id: u64) -> Element {
 #[component]
 fn DebugBlock(title: String, value: Value) -> Element {
     rsx! {
-        section { class: "debugBlock",
+        section { class: "hyle-debug-block",
             h2 { "{title}" }
             pre { "{serde_json::to_string_pretty(&value).unwrap()}" }
         }

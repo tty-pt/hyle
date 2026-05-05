@@ -161,37 +161,44 @@ pub fn use_filters(
     let bp_for_fields = config.blueprint.clone();
     let bp_for_validate = config.blueprint.clone();
 
+    // Guard against re-seeding form_data on subsequent memo evaluations.
+    // Writing a signal inside a use_memo would cause Dioxus SSR to
+    // re-evaluate the memo synchronously (signal changed → memo dirty →
+    // re-run → signal changes again → ...), producing an infinite loop and
+    // a stack overflow.  The flag is set once; subsequent evaluations skip
+    // the write and avoid the loop.
+    let mut seeded = use_signal(|| false);
+
     // Derive fields reactively from seed_data so they are available on SSR
     // (use_effect doesn't run during server-side rendering).
     let fields = use_memo(move || {
         let raw_fields = match &*seed_data.read() {
             HyleDataState::Ready { row: Some(r), manifest, outcome, .. } => {
                 // Seed form_data from the row the first time it arrives.
-                let seeded: IndexMap<String, String> = r
-                    .iter()
-                    .map(|(k, v)| {
-                        let s = match v {
-                            Value::String(s) => s.clone(),
-                            Value::Null => String::new(),
-                            Value::Array(arr) => arr
-                                .iter()
-                                .map(|item| match item {
-                                    Value::String(s) => s.clone(),
-                                    other => other.to_string(),
-                                })
-                                .collect::<Vec<_>>()
-                                .join(","),
-                            other => other.to_string(),
-                        };
-                        (k.clone(), s)
-                    })
-                    .collect();
-                form_data.set(seeded);
-                // NOTE: `form_data.set()` is a side-effect inside a `use_memo` (normally a
-                // pure computation). Ideally this would live in a `use_effect`, but Dioxus
-                // SSR does not execute `use_effect` during server-side rendering, so moving
-                // it there would break pre-rendered forms. The extra render cycle this causes
-                // is acceptable given the SSR constraint.
+                // Only write when not yet seeded to break the reactive loop.
+                if !seeded() {
+                    let row_data: IndexMap<String, String> = r
+                        .iter()
+                        .map(|(k, v)| {
+                            let s = match v {
+                                Value::String(s) => s.clone(),
+                                Value::Null => String::new(),
+                                Value::Array(arr) => arr
+                                    .iter()
+                                    .map(|item| match item {
+                                        Value::String(s) => s.clone(),
+                                        other => other.to_string(),
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(","),
+                                other => other.to_string(),
+                            };
+                            (k.clone(), s)
+                        })
+                        .collect();
+                    form_data.set(row_data);
+                    seeded.set(true);
+                }
                 build_filter_fields(&bp_for_fields, manifest, outcome)
                     .into_iter()
                     .map(|f| HyleFilterField { key: f.key, label: f.label, field: f.field, options: f.options, display_field_type: f.display_field_type, render: None })

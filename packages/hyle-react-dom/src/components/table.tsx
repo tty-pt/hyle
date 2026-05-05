@@ -116,10 +116,10 @@ export function HyleTableBody({
                       hyle.displayValue(
                         blueprint,
                         list.result,
-                        list.manifest.base,
+                        list.manifest?.base ?? "",
                         col.key,
                         value,
-                      )
+                      ) || String(value ?? "")
                     );
                     return (
                       <td key={col.key}>

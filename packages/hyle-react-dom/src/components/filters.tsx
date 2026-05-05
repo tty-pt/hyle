@@ -14,10 +14,11 @@ export const FilterAppearanceContext = createContext<FilterAppearance>({ boolean
 
 // ── FilterString ──────────────────────────────────────────────────────────────
 
-export function FilterString({ label, value, onChange }: FilterProps<string>) {
+export function FilterString({ label, fieldName, value, onChange }: FilterProps<string>) {
   return (
     <input
       type="text"
+      name={fieldName}
       aria-label={label}
       placeholder={label}
       value={value}
@@ -28,11 +29,12 @@ export function FilterString({ label, value, onChange }: FilterProps<string>) {
 
 // ── FilterNumber ──────────────────────────────────────────────────────────────
 
-export function FilterNumber({ label, value, onChange }: FilterProps<string>) {
+export function FilterNumber({ label, fieldName, value, onChange }: FilterProps<string>) {
   return (
     <input
       type="number"
       step="any"
+      name={fieldName}
       aria-label={label}
       placeholder={label}
       value={value}
@@ -52,7 +54,7 @@ export type FilterBooleanProps = FilterProps<boolean | undefined> & {
   appearance?: "checkbox" | "select";
 };
 
-export function FilterBoolean({ label, value, onChange, appearance: appearanceProp }: FilterBooleanProps) {
+export function FilterBoolean({ label, fieldName, value, onChange, appearance: appearanceProp }: FilterBooleanProps) {
   const ctx = useContext(FilterAppearanceContext);
   const appearance = appearanceProp ?? ctx.boolean ?? "select";
 
@@ -60,6 +62,7 @@ export function FilterBoolean({ label, value, onChange, appearance: appearancePr
     const strVal = value === true ? "true" : value === false ? "false" : "";
     return (
       <select
+        name={fieldName}
         aria-label={label}
         value={strVal}
         onChange={(e) => {
@@ -81,6 +84,7 @@ export function FilterBoolean({ label, value, onChange, appearance: appearancePr
       <label>
         <input
           type="checkbox"
+          name={fieldName}
           checked={value === true}
           onChange={(e) => onChange(e.target.checked ? true : undefined)}
         />
@@ -102,6 +106,7 @@ export type FilterReferenceProps = FilterProps<string> & {
 
 export function FilterReference({
   label,
+  fieldName,
   value,
   field,
   result,
@@ -133,6 +138,7 @@ export function FilterReference({
       <>
         <input
           type="text"
+          name={fieldName}
           aria-label={label}
           placeholder={label}
           value={value}
@@ -158,6 +164,7 @@ export function FilterReference({
   }
   return (
     <select
+      name={fieldName}
       aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -172,10 +179,11 @@ export function FilterReference({
 
 // ── FilterFile ────────────────────────────────────────────────────────────────
 
-export function FilterFile({ label, value, onChange }: FilterProps<string>) {
+export function FilterFile({ label, fieldName, value, onChange }: FilterProps<string>) {
   return (
     <input
       type="text"
+      name={fieldName}
       aria-label={label}
       placeholder={label}
       value={value}
@@ -287,6 +295,7 @@ export function FilterArray<T>({
             <label key={opt.id}>
               <input
                 type="checkbox"
+                name={fieldName}
                 value={opt.id}
                 checked={selected.includes(opt.id)}
                 onChange={(e) => {

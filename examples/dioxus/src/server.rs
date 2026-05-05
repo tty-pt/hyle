@@ -10,10 +10,15 @@
 use dioxus::prelude::*;
 use dioxus_fullstack_core::ServerFnError;
 use hyle::Source;
-use hyle::{FormErrors, MutateInput};
+use hyle::MutateInput;
+#[cfg(not(target_arch = "wasm32"))]
+use hyle::FormErrors;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_arch = "wasm32"))]
 use serde_json::{json, Value};
+#[cfg(target_arch = "wasm32")]
+use serde_json::Value;
 
 // ── Data types ────────────────────────────────────────────────────────────────
 
@@ -255,6 +260,7 @@ pub async fn delete_user(input: MutateInput) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn extract_id(v: &Option<Value>) -> u64 {
     v.as_ref()
         .and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))

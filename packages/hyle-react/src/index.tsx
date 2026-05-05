@@ -51,6 +51,7 @@ export type {
   FormaContext,
   FormaField,
   FormaFieldType,
+  HyleClient,
   Manifest,
   Model,
   ModelResult,
@@ -222,15 +223,18 @@ export function HyleProvider({
   client,
   blueprint = null,
   children,
+  initialStatus = "loading",
 }: {
   client: HyleClient;
   blueprint?: Blueprint | null;
   children: ReactNode;
+  /** Override the initial WASM load status — use `"ready"` for SSR where WASM is unavailable. */
+  initialStatus?: HyleStatus;
 }) {
   const [state, setState] = useState<{
     status: HyleStatus;
     error: Error | null;
-  }>({ status: "loading", error: null });
+  }>({ status: initialStatus, error: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -529,6 +533,17 @@ export type HyleListState<TRow extends Row = Row> = HyleDataState<TRow> & {
 
 export type UseListOptions = {
   perPageOptions?: number[];
+  /**
+   * Pre-resolved list data for SSR hydration — when provided, `useList`
+   * returns `status: "ready"` immediately on the first render without waiting
+   * for a network fetch or WASM. Typically populated from SSR context.
+   */
+  initialData?: {
+    rows: Row[];
+    total: number;
+    result: Result;
+    manifest: Manifest;
+  };
 };
 
 /**
@@ -555,6 +570,18 @@ export type UseFiltersOptions = {
    * the field entirely.
    */
   change?: FieldChangeMap;
+  /**
+   * Initial committed filter values — typically seeded from URL query params
+   * for SSR hydration.  Keys are field names; values follow the same shape as
+   * committed state (string for scalars, string[] for array/multi-select).
+   */
+  initialCommitted?: Partial<Row>;
+  /**
+   * Initial result to use for rendering reference filter options before the
+   * async data fetch completes — typically seeded from SSR context so filter
+   * `<select>` / checkbox lists render on first paint without JS.
+   */
+  initialResult?: Result;
 };
 
 export type HyleFiltersState<TRow extends Row = Row> = {
@@ -807,7 +834,7 @@ export function makeHyleHooks<
     options?: UseListOptions,
   ): HyleListState<RowForFrom<TFrom>>;
   function useList(query: Query, options: UseListOptions = {}): HyleListState {
-    const { perPageOptions = [5, 10, 20] } = options;
+    const { perPageOptions = [5, 10, 20], initialData } = options;
     const [page, setPage] = useState(query.page ?? 1);
     const [perPage, setPerPage] = useState(query.perPage ?? perPageOptions[0] ?? 20);
     const [sortField, setSortField] = useState<string | undefined>(query.sort?.field);
@@ -822,8 +849,23 @@ export function makeHyleHooks<
 
     const data = useData(effectiveQuery);
 
+    // If pre-resolved SSR data was provided and the async fetch hasn't resolved
+    // yet, return the seeded data so the first SSR render is fully populated.
+    const resolvedData: HyleDataState = (data.status === "loading" && initialData)
+      ? {
+          status: "ready",
+          error: null,
+          manifest: initialData.manifest,
+          result: initialData.result,
+          rows: initialData.rows,
+          row: null,
+          fields: [],
+          validation: null,
+        }
+      : data;
+
     return {
-      ...data,
+      ...resolvedData,
       query: effectiveQuery,
       page,
       perPage,
@@ -846,10 +888,10 @@ export function makeHyleHooks<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function useFilters(query: Query, options: UseFiltersOptions = {}): any {
     const hyle = useHyle();
-    const { change } = options;
+    const { change, initialCommitted, initialResult } = options;
 
-    const [committed, setCommitted] = useState<Partial<Row>>({});
-    const [formData, setFormData] = useState<Partial<Row>>({});
+    const [committed, setCommitted] = useState<Partial<Row>>(initialCommitted ?? {});
+    const [formData, setFormData] = useState<Partial<Row>>(initialCommitted ?? {});
     const [filterResetKey, setFilterResetKey] = useState(0);
     const [purifyErrors, setPurifyErrors] = useState<PurifyError[] | null>(null);
 
@@ -921,7 +963,7 @@ export function makeHyleHooks<
     const setFieldRef = useRef(setField);
     setFieldRef.current = setField;
     const resultRef = useRef<Result | null>(null);
-    resultRef.current = seedData.status === "ready" ? seedData.result : null;
+    resultRef.current = seedData.status === "ready" ? seedData.result : (initialResult ?? null);
 
     const Filter = useMemo(() => {
       const cols = manifest ? hyle.columns(blueprint, manifest) : [];
@@ -1307,7 +1349,13 @@ function normalizeSourceResult(result: HyleSourceAdapterResult): {
 }
 
 function isSource(result: HyleSourceAdapterResult): result is Source {
-  return Boolean(result && typeof result === "object" && !("source" in result));
+  return Boolean(
+    result &&
+    typeof result === "object" &&
+    !("source" in result) &&
+    !("loading" in result) &&
+    !("error" in result)
+  );
 }
 
 function toError(error: unknown): Error {
