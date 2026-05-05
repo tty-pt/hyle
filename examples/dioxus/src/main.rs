@@ -85,7 +85,7 @@ fn app() -> Element {
     ));
 
     rsx! {
-        style { {hyle::CSS} }
+        dioxus::document::Stylesheet { href: hyle::CSS }
         style { {include_str!("style.css")} }
         Router::<Route> {}
     }

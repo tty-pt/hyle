@@ -1,6 +1,8 @@
-import { useId, createContext, useContext } from "react";
+import React, { useId, createContext, useContext, createElement } from "react";
 import type { FilterProps } from "@tty-pt/hyle-react";
 import type { Row } from "@tty-pt/hyle-react";
+import type { ComponentType } from "react";
+import { componentKeyForField } from "@tty-pt/hyle-react";
 
 // ── FilterAppearanceContext ────────────────────────────────────────────────────
 
@@ -195,11 +197,14 @@ export function FilterArray<T>({
   fieldName,
   result,
   onChange,
+  components,
+  blueprint,
 }: FilterProps<T>) {
   const selected = (value as unknown[]) ?? [];
 
   type Option = { id: string; label: string };
   let options: Option[] | null = null;
+  let displayFieldCompKey: string | null = null;
 
   if (result && field.type.kind === "array") {
     const item = field.type.item;
@@ -212,6 +217,12 @@ export function FilterArray<T>({
           id,
           label: String((row as Row)[displayField] ?? id),
         }));
+      }
+      if (components && blueprint) {
+        const displayFieldType = blueprint.models[entity]?.fields[displayField]?.type;
+        if (displayFieldType) {
+          displayFieldCompKey = componentKeyForField(displayFieldType);
+        }
       }
     } else if (item.kind === "primitive") {
       const rows: Row[] = Array.isArray(result.rows)
@@ -243,22 +254,52 @@ export function FilterArray<T>({
       ) : options.length === 0 ? (
         <span>No options</span>
       ) : (
-        options.map((opt) => (
-          <label key={opt.id}>
-            <input
-              type="checkbox"
-              value={opt.id}
-              checked={selected.includes(opt.id)}
-              onChange={(e) => {
-                const next = e.target.checked
-                  ? [...selected, opt.id]
-                  : selected.filter((s) => s !== opt.id);
-                onChange(next as T);
-              }}
-            />
-            {" "}{opt.label}
-          </label>
-        ))
+        options.map((opt) => {
+          let labelNode: React.ReactNode = opt.label;
+          if (
+            displayFieldCompKey &&
+            components &&
+            blueprint &&
+            field.type.kind === "array" &&
+            field.type.item.kind === "reference" &&
+            result
+          ) {
+            const { entity, displayField } = field.type.item.reference;
+            const ValueComp = components[displayFieldCompKey as keyof typeof components] as ComponentType<Record<string, unknown>> | undefined;
+            if (ValueComp) {
+              const lookupMap = result.lookups?.[entity] ?? {};
+              const refRow = (lookupMap as Record<string, Row>)[opt.id];
+              const displayValue = refRow ? refRow[displayField] : opt.label;
+              const displayField_ = blueprint.models[entity]?.fields[displayField];
+              labelNode = createElement(ValueComp, {
+                value: displayValue,
+                row: refRow ?? ({ id: opt.id } as Row),
+                field: displayField_ ?? field,
+                column: { key: displayField, field: displayField_ ?? field, label: displayField },
+                result,
+                modelName: entity,
+                blueprint,
+                components,
+              });
+            }
+          }
+          return (
+            <label key={opt.id}>
+              <input
+                type="checkbox"
+                value={opt.id}
+                checked={selected.includes(opt.id)}
+                onChange={(e) => {
+                  const next = e.target.checked
+                    ? [...selected, opt.id]
+                    : selected.filter((s) => s !== opt.id);
+                  onChange(next as T);
+                }}
+              />
+              {" "}{labelNode}
+            </label>
+          );
+        })
       )}
     </fieldset>
   );

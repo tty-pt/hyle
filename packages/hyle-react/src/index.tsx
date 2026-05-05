@@ -83,6 +83,7 @@ export type ValueProps = {
   result: Result | null;
   modelName: string;
   blueprint: Blueprint;
+  components?: HyleFieldComponents;
 };
 
 export type FilterProps<T = unknown> = {
@@ -93,6 +94,8 @@ export type FilterProps<T = unknown> = {
   /** Resolved lookup data for the current query — used by reference filter inputs. */
   result: Result | null;
   onChange: (value: T) => void;
+  components?: HyleFieldComponents;
+  blueprint?: Blueprint;
 };
 
 /**
@@ -940,6 +943,7 @@ export function makeHyleHooks<
             value,
             result: resultRef.current,
             components: componentsRef.current,
+            blueprint,
             fieldComponent,
             onChange: (v: unknown) => setFieldRef.current(col.key, v),
           });
@@ -1245,6 +1249,7 @@ type FilterInputProps = {
   value: unknown;
   result: Result | null;
   components: HyleFieldComponents;
+  blueprint: Blueprint;
   /** Per-field component override (from `change` map); takes priority over `components`. */
   fieldComponent?: ComponentType<FilterProps<unknown>>;
   onChange: (value: unknown) => void;
@@ -1258,6 +1263,7 @@ function FilterInputComponent({
   value,
   result,
   components,
+  blueprint,
   fieldComponent,
   onChange,
 }: FilterInputProps) {
@@ -1267,7 +1273,7 @@ function FilterInputComponent({
     (components[filterKey] as ComponentType<FilterProps<unknown>> | undefined);
 
   if (CustomFilter) {
-    return createElement(CustomFilter, { fieldName, field, label, value, result, onChange });
+    return createElement(CustomFilter, { fieldName, field, label, value, result, components, blueprint, onChange });
   }
 
   // Default: plain text input

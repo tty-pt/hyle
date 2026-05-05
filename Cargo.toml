@@ -22,6 +22,9 @@ dioxus = { version = "=0.7.7", default-features = false, features = ["launch"] }
 dioxus-core = "=0.7.7"
 dioxus-hooks = "=0.7.7"
 dioxus-signals = "=0.7.7"
+hyle               = { path = "crates/hyle",               version = "0.1" }
+hyle-dioxus        = { path = "crates/hyle-dioxus",        version = "0.1" }
+hyle-dioxus-native = { path = "crates/hyle-dioxus-native", version = "0.1" }
 
 [profile.dev]
 opt-level = 2

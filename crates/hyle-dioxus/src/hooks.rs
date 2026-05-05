@@ -194,13 +194,13 @@ pub fn use_filters(
                 // is acceptable given the SSR constraint.
                 build_filter_fields(&bp_for_fields, manifest, outcome)
                     .into_iter()
-                    .map(|f| HyleFilterField { key: f.key, label: f.label, field: f.field, options: f.options, render: None })
+                    .map(|f| HyleFilterField { key: f.key, label: f.label, field: f.field, options: f.options, display_field_type: f.display_field_type, render: None })
                     .collect()
             }
             HyleDataState::Ready { manifest, outcome, .. } => {
                 build_filter_fields(&bp_for_fields, manifest, outcome)
                     .into_iter()
-                    .map(|f| HyleFilterField { key: f.key, label: f.label, field: f.field, options: f.options, render: None })
+                    .map(|f| HyleFilterField { key: f.key, label: f.label, field: f.field, options: f.options, display_field_type: f.display_field_type, render: None })
                     .collect()
             }
             _ => vec![],

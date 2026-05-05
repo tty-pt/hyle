@@ -20,11 +20,11 @@ pub mod wasm;
 
 /// The default component stylesheet for hyle UI components.
 ///
-/// Dioxus consumers can inject this into their app:
+/// Dioxus consumers can link this into their app:
 /// ```rust,ignore
-/// rsx! { style { {hyle::CSS} } }
+/// document::Link { rel: "stylesheet", href: hyle::CSS }
 /// ```
-pub const CSS: &str = include_str!("../assets/hyle.css");
+pub static CSS: manganis::Asset = manganis::asset!("assets/hyle.css");
 
 pub use blueprint::{Blueprint, Model, ResolvedView};
 pub use error::{Error, HyleResult};

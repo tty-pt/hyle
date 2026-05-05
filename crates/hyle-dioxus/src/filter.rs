@@ -2,8 +2,8 @@ use dioxus::prelude::*;
 
 use hyle::{FieldType, Primitive};
 
-use crate::context::use_hyle_components;
-use crate::types::{field_type_key, HyleFilterField, HyleFilterFieldProps, HyleFiltersState};
+use crate::context::{use_hyle_components, HyleConfig};
+use crate::types::{field_type_key, HyleComponents, HyleFilterField, HyleFilterFieldProps, HyleFiltersState, HyleValueProps};
 
 /// A reactive filter input derived from `HyleFiltersState`.
 ///
@@ -176,7 +176,7 @@ fn default_input(ff: HyleFilterField, value: String, set: Callback<String>) -> E
 
         FieldType::Array { .. } => {
             match ff.options {
-                Some(options) => checkbox_reference_fieldset(ff.key, ff.label, value, options, set),
+                Some(options) => checkbox_reference_fieldset(ff.key, ff.label, value, options, ff.display_field_type.clone(), set),
                 None => rsx! {
                     fieldset {
                         legend { "{ff.label}" }
@@ -260,6 +260,7 @@ fn checkbox_reference_fieldset(
     label: String,
     value: String,
     options: Vec<(String, String)>,
+    display_field_type: Option<FieldType>,
     set: Callback<String>,
 ) -> Element {
     let selected: Vec<String> = if value.is_empty() {
@@ -267,6 +268,20 @@ fn checkbox_reference_fieldset(
     } else {
         value.split(',').map(|s| s.trim().to_owned()).collect()
     };
+
+    // Look up a value renderer for the display field type — same map as table cells (symmetric with React).
+    let components: Option<HyleComponents> = use_hyle_components();
+    let label_render_fn: Option<fn(HyleValueProps) -> Element> =
+        display_field_type.as_ref().and_then(|ft| {
+            components.as_ref().and_then(|c| {
+                let key = field_type_key(ft);
+                c.values.get(key).copied()
+            })
+        });
+
+    // Blueprint from context — needed to build HyleValueProps for the label renderer.
+    let blueprint = use_context::<HyleConfig>().blueprint;
+
     rsx! {
         fieldset {
             legend { "{label}" }
@@ -299,7 +314,24 @@ fn checkbox_reference_fieldset(
                             }
                         },
                     }
-                    " {display}"
+                    if let Some(render_fn) = label_render_fn {
+                        {
+                            let ft = display_field_type.clone().unwrap_or(FieldType::Primitive { primitive: Primitive::String });
+                            let field = hyle::Field { label: display.clone(), field_type: ft, options: Default::default() };
+                            let display_val = hyle::Value::String(display.clone());
+                            render_fn(HyleValueProps {
+                                key: id.clone(),
+                                field,
+                                value: display_val,
+                                outcome: hyle::Outcome::empty(),
+                                model_name: String::new(),
+                                blueprint: (*blueprint).clone(),
+                                components: components.clone(),
+                            })
+                        }
+                    } else {
+                        " {display}"
+                    }
                 }
             }
         }

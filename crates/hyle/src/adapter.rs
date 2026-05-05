@@ -150,6 +150,10 @@ pub struct HyleFilterField<R = ()> {
     pub field: Field,
     /// Pre-resolved `(id, display_label)` pairs for `Reference` fields.
     pub options: Option<Vec<(String, String)>>,
+    /// The `FieldType` of the referenced entity's `display_field`, when this
+    /// field is a `Reference` or `Array<Reference>`.  Used by framework adapters
+    /// to look up a registered value/filter renderer for the display field.
+    pub display_field_type: Option<FieldType>,
     /// Optional per-field render override installed by the `change` map.
     pub render: Option<R>,
 }
@@ -161,6 +165,7 @@ impl<R: Clone> Clone for HyleFilterField<R> {
             label: self.label.clone(),
             field: self.field.clone(),
             options: self.options.clone(),
+            display_field_type: self.display_field_type.clone(),
             render: self.render.clone(),
         }
     }
@@ -172,6 +177,7 @@ impl<R> PartialEq for HyleFilterField<R> {
             && self.label == other.label
             && self.field == other.field
             && self.options == other.options
+            && self.display_field_type == other.display_field_type
         // render intentionally excluded (opaque closure)
     }
 }
@@ -404,7 +410,10 @@ pub fn build_filter_fields(
     columns
         .into_iter()
         .map(|col| {
-            let options = match &col.field.field_type {
+            let mut options: Option<Vec<(String, String)>> = None;
+            let mut display_field_type: Option<FieldType> = None;
+
+            match &col.field.field_type {
                 FieldType::Reference { reference } => {
                     let pairs = outcome
                         .lookups
@@ -423,7 +432,12 @@ pub fn build_filter_fields(
                                 .collect::<Vec<_>>()
                         })
                         .unwrap_or_default();
-                    Some(pairs)
+                    options = Some(pairs);
+                    display_field_type = blueprint
+                        .models
+                        .get(&reference.entity)
+                        .and_then(|m| m.fields.get(&reference.display_field))
+                        .map(|f| f.field_type.clone());
                 }
                 FieldType::Array { item } => {
                     if let FieldType::Reference { reference } = item.as_ref() {
@@ -444,7 +458,12 @@ pub fn build_filter_fields(
                                     .collect::<Vec<_>>()
                             })
                             .unwrap_or_default();
-                        Some(pairs)
+                        options = Some(pairs);
+                        display_field_type = blueprint
+                            .models
+                            .get(&reference.entity)
+                            .and_then(|m| m.fields.get(&reference.display_field))
+                            .map(|f| f.field_type.clone());
                     } else {
                         // Scan rows for distinct primitive values of this field.
                         let mut seen = std::collections::HashSet::new();
@@ -462,13 +481,15 @@ pub fn build_filter_fields(
                                 }
                             }
                         }
-                        if pairs.is_empty() { None } else { Some(pairs) }
+                        if !pairs.is_empty() {
+                            options = Some(pairs);
+                        }
                     }
                 }
-                _ => None,
+                _ => {}
             };
 
-            HyleFilterField { key: col.key, label: col.label, field: col.field, options, render: None }
+            HyleFilterField { key: col.key, label: col.label, field: col.field, options, display_field_type, render: None }
         })
         .collect()
 }
@@ -713,6 +734,7 @@ mod tests {
                 options: Default::default(),
             },
             options: None,
+            display_field_type: None,
             render: None,
         }
     }

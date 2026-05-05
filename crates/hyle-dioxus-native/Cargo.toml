@@ -10,8 +10,8 @@ keywords = ["dioxus", "blueprint", "ui", "native", "table"]
 categories = ["gui", "web-programming"]
 
 [dependencies]
-hyle-dioxus = { path = "../hyle-dioxus", version = "0.1" }
-hyle = { path = "../hyle", version = "0.1" }
+hyle-dioxus = { workspace = true }
+hyle = { workspace = true }
 dioxus = { workspace = true, features = ["html", "macro", "signals"] }
 dioxus-signals = { workspace = true }
 indexmap = { workspace = true }

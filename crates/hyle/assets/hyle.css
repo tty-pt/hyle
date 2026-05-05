@@ -12,11 +12,11 @@
   --hyle-text-muted:      color-mix(in srgb, var(--hyle-color-text) 60%, var(--hyle-color-surface));
   --hyle-text-subtle:     color-mix(in srgb, var(--hyle-color-text) 35%, var(--hyle-color-surface));
 
-  --hyle-surface-raised:  color-mix(in srgb, var(--hyle-color-text)  3%, var(--hyle-color-surface));
-  --hyle-surface-hover:   color-mix(in srgb, var(--hyle-color-text)  6%, var(--hyle-color-surface));
+  --hyle-surface-raised:  color-mix(in srgb, var(--hyle-color-text)  5%, var(--hyle-color-surface));
+  --hyle-surface-hover:   color-mix(in srgb, var(--hyle-color-text) 10%, var(--hyle-color-surface));
   --hyle-surface-primary: color-mix(in srgb, var(--hyle-color-primary) 8%, var(--hyle-color-surface));
 
-  --hyle-border-subtle:   color-mix(in srgb, var(--hyle-color-border) 70%, var(--hyle-color-surface));
+  --hyle-border-subtle:   var(--hyle-color-border);
   --hyle-border-hover:    color-mix(in srgb, var(--hyle-color-border), var(--hyle-color-text) 20%);
 
   --hyle-primary-hover:   color-mix(in srgb, var(--hyle-color-primary) 85%, black);
@@ -348,6 +348,8 @@
   border-radius: 6px;
   font-size: 14px;
   font-family: inherit;
+  background: var(--hyle-color-surface);
+  color: var(--hyle-color-text);
 }
 
 .hyle-field-row input[type="checkbox"] {

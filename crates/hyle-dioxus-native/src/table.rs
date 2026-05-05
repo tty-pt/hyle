@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
-use hyle::{HyleDataState, FieldType};
-use hyle_dioxus::{use_context_provider, use_hyle_components, field_type_key, HyleFiltersState, HyleListState, HyleValueProps, FilterField};
+use hyle::HyleDataState;
+use hyle_dioxus::{use_context_provider, use_hyle_components, field_type_key, HyleFiltersState, HyleListState, HyleValueProps, FilterField, HyleConfig};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
@@ -37,6 +37,7 @@ pub fn HyleTableBody(
             let sort_field = list.sort_field.read().clone();
             let sort_ascending = *list.sort_ascending.read();
             let components = use_hyle_components();
+            let blueprint = use_context::<HyleConfig>().blueprint;
 
             rsx! {
                 div { class: "hyle-table-wrap",
@@ -122,21 +123,11 @@ pub fn HyleTableBody(
                                                                 value: val.clone(),
                                                                 outcome: outcome.clone(),
                                                                 model_name: manifest.base.clone(),
+                                                                blueprint: (*blueprint).clone(),
+                                                                components: components.clone(),
                                                             })
                                         } else {
-                                            let display = match &col.field.field_type {
-                                                FieldType::Array { .. } => {
-                                                    if let Some(arr) = val.as_array() {
-                                                        arr.iter()
-                                                            .map(|v| hyle::display_value_from_outcome(&outcome, &col.key, v))
-                                                            .collect::<Vec<_>>()
-                                                            .join(", ")
-                                                    } else {
-                                                        hyle::display_value_from_outcome(&outcome, &col.key, &val)
-                                                    }
-                                                }
-                                                _ => hyle::display_value_from_outcome(&outcome, &col.key, &val),
-                                            };
+                                            let display = hyle::display_value(&blueprint, &outcome, &manifest.base, &col.key, &val);
                                             rsx! { "{display}" }
                                         };
                                                         if i == 0 {

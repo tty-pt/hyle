@@ -13,7 +13,7 @@ default = ["server"]
 server = ["dioxus/server"]
 
 [dependencies]
-dioxus = { workspace = true, features = ["html", "macro", "signals", "router"] }
+dioxus = { workspace = true, features = ["html", "macro", "signals", "router", "document"] }
 dioxus-fullstack-core = { version = "=0.7.7" }
 hyle = { path = "../../crates/hyle" }
 hyle-dioxus = { path = "../../crates/hyle-dioxus" }

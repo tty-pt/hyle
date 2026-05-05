@@ -6,5 +6,5 @@ default_platform = "web"
 title = "rentity Dioxus Example"
 
 [web.watcher]
-watch_path = ["src"]
+watch_path = ["src", "../../crates/hyle/src", "../../crates/hyle-dioxus/src", "../../crates/hyle-dioxus-native/src"]
 reload_html = true

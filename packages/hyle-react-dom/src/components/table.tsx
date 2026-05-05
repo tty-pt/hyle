@@ -110,6 +110,7 @@ export function HyleTableBody({
                         result={list.status === "ready" ? list.result : null}
                         modelName={list.manifest?.base ?? ""}
                         blueprint={blueprint}
+                        components={components}
                       />
                     ) : (
                       hyle.displayValue(

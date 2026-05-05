@@ -13,7 +13,7 @@ categories = ["gui", "wasm", "web-programming"]
 axum = ["dep:axum", "dioxus/server"]
 
 [dependencies]
-hyle = { path = "../hyle", version = "0.1" }
+hyle = { workspace = true }
 dioxus = { workspace = true, features = ["html", "macro", "signals"] }
 dioxus-core = { workspace = true }
 dioxus-hooks = { workspace = true }
