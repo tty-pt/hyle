@@ -80,7 +80,7 @@ pub fn FilterField(
     }
 
     // Priority 3: built-in default.
-    default_input(ff, value, set)
+    default_input(ff, value, set, false)
 }
 
 /// Like [`FilterField`] but intended for form contexts: boolean fields render
@@ -129,13 +129,13 @@ fn form_default_input(ff: HyleFilterField, value: String, set: Callback<String>)
         FieldType::Primitive {
             primitive: Primitive::Boolean,
         } => boolean_checkbox(ff.key, ff.label, value, set),
-        _ => default_input(ff, value, set),
+        _ => default_input(ff, value, set, true),
     }
 }
 
 // ── Default input dispatch ────────────────────────────────────────────────────
 
-fn default_input(ff: HyleFilterField, value: String, set: Callback<String>) -> Element {
+fn default_input(ff: HyleFilterField, value: String, set: Callback<String>, is_form: bool) -> Element {
     match &ff.field.field_type {
         FieldType::Primitive {
             primitive: Primitive::Boolean,
@@ -147,6 +147,30 @@ fn default_input(ff: HyleFilterField, value: String, set: Callback<String>) -> E
         },
 
         FieldType::Array { .. } => {
+            // Check if input hint specifies textarea
+            let is_textarea = ff.field.options.input.as_ref()
+                .map(|i| i.kind == "textarea")
+                .unwrap_or(false);
+
+            if is_textarea {
+                let rows = ff.field.options.input.as_ref()
+                    .and_then(|i| i.props.get("rows"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("4");
+                return rsx! {
+                    label {
+                        "{ff.label}"
+                        textarea {
+                            name: "{ff.key}",
+                            rows: "{rows}",
+                            value: "{value}",
+                            oninput: move |e| set.call(e.value()),
+                            placeholder: "One type per line (e.g., folk\\nrock)",
+                        }
+                    }
+                };
+            }
+
             match ff.options {
                 Some(options) => checkbox_reference_fieldset(ff.key, ff.label, value, options, ff.display_field_type.clone(), set),
                 None => rsx! {

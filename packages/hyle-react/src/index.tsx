@@ -97,6 +97,8 @@ export type FilterProps<T = unknown> = {
   onChange: (value: T) => void;
   components?: HyleFieldComponents;
   blueprint?: Blueprint;
+  /** Context determines rendering: "filter" for table filter bars, "form" for create/edit */
+  context?: "filter" | "form";
 };
 
 /**
@@ -122,6 +124,12 @@ export type HyleFieldComponents = {
   FilterArray?: ComponentType<FilterProps<unknown>>;
   FilterShape?: ComponentType<FilterProps<unknown>>;
 };
+
+export const FilterContext = createContext<"filter" | "form">("filter");
+
+export function useFilterContext(): "filter" | "form" {
+  return useContext(FilterContext);
+}
 
 // ─── Hyle context / provider ────────────────────────────────────────────────
 

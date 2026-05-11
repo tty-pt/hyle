@@ -117,6 +117,15 @@ pub fn filter_rows(rows: &[Row], filters: &IndexMap<String, Value>) -> Vec<Row> 
                             return parts.iter().all(|p| arr_ids.iter().any(|id| id.contains(&p.to_lowercase())));
                         }
                     }
+                    // Single string filter against array row field:
+                    // check if the filter string is contained in any array element.
+                    if let Some(Value::Array(arr)) = row_val {
+                        let filter_lower = filter_str.to_lowercase();
+                        return arr.iter().any(|v| {
+                            let elem = value_to_filter_text(v);
+                            elem.contains(&filter_lower)
+                        });
+                    }
                 }
 
                 let row_value = row_val.map(value_to_filter_text).unwrap_or_default();
@@ -515,6 +524,32 @@ mod tests {
         filter.insert("tags".into(), json!(Vec::<String>::new()));
         let result = filter_rows(&rows, &filter);
         assert_eq!(result.len(), 2, "empty array filter should match all rows");
+    }
+
+    #[test]
+    fn filter_rows_string_against_array_field() {
+        // Single string filter against array field: filter "rust" should match rows
+        // whose array contains "rust" (case-insensitive substring match).
+        let mut row_a = IndexMap::new();
+        row_a.insert("id".into(), json!(1));
+        row_a.insert("tags".into(), json!(["rust", "web"]));
+        let mut row_b = IndexMap::new();
+        row_b.insert("id".into(), json!(2));
+        row_b.insert("tags".into(), json!(["web"]));
+        let mut row_c = IndexMap::new();
+        row_c.insert("id".into(), json!(3));
+        row_c.insert("tags".into(), json!(["Rust", "Go"])); // uppercase variant
+
+        let rows = vec![row_a, row_b, row_c];
+
+        // Single string filter "rust" — comes from URL param ?tags=rust or form input
+        let mut filter = IndexMap::new();
+        filter.insert("tags".into(), json!("rust"));
+        let result = filter_rows(&rows, &filter);
+        assert_eq!(result.len(), 2, "should match rows with 'rust' in tags (case-insensitive)");
+        let ids: Vec<i64> = result.iter().map(|r| r["id"].as_i64().unwrap()).collect();
+        assert!(ids.contains(&1), "row 1 has rust");
+        assert!(ids.contains(&3), "row 3 has Rust (case-insensitive)");
     }
 
     // --- sort ---

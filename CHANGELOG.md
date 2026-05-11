@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] — 2026-05-12
+
+### Added
+
+- `FilterProps.context?: "filter" | "form"` prop — determines how filter components render
+- `FilterContext` + `useFilterContext()` exported from `@tty-pt/hyle-react` — allows components to detect form vs filter-bar context
+- `FilterFile` in `@tty-pt/hyle-react-dom`: renders `<input type="file">` when `context="form"`, text input when `context="filter"` (default)
+- `FilterFile` in `@tty-pt/hyle-react-dom`: supports `accept`, `multiple`, `required` from field options
+- `FilterBoolean` in `@tty-pt/hyle-react-dom`: defaults to checkbox appearance when `context="form"` (via context or explicit prop)
+- `HyleFormFields` in `@tty-pt/hyle-react-dom`: wrapped with `FilterContext.Provider value="form"` so child inputs auto-detect form context
+
+### Tests
+
+- Added test cases for `FilterBoolean` with `context="form"` (renders checkbox)
+- Added test cases for `FilterFile` with `context="form"` (renders file input with `accept`/`multiple`/`required`)
+
 ## [0.1.5] — 2026-05-07
 
 ### Fixed

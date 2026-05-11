@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { useHyle } from "@tty-pt/hyle-react";
+import { useHyle, FilterContext } from "@tty-pt/hyle-react";
 import type { Blueprint, HyleFiltersState } from "@tty-pt/hyle-react";
 import { FilterAppearanceContext } from "./filters";
 
@@ -27,21 +27,23 @@ export function HyleFormFields({
   const fields = hyle.modelFields(blueprint, model);
 
   return (
-    <FilterAppearanceContext.Provider value={{ boolean: "checkbox" }}>
-      <div className="hyle-edit-fields">
-        {fields.map(({ key, label, field }) => {
-          const Input = Filter[key] as ComponentType | undefined;
-          if (!Input) return null;
-          const selfLabels = field.type.kind === "array" ||
-            (field.type.kind === "primitive" && field.type.primitive === "boolean");
-          return (
-            <div className="hyle-field-row" key={key}>
-              {!selfLabels && <label>{label}</label>}
-              <Input />
-            </div>
-          );
-        })}
-      </div>
-    </FilterAppearanceContext.Provider>
+    <FilterContext.Provider value="form">
+      <FilterAppearanceContext.Provider value={{ boolean: "checkbox" }}>
+        <div className="hyle-edit-fields">
+          {fields.map(({ key, label, field }) => {
+            const Input = Filter[key] as ComponentType | undefined;
+            if (!Input) return null;
+            const selfLabels = field.type.kind === "array" ||
+              (field.type.kind === "primitive" && field.type.primitive === "boolean");
+            return (
+              <div className="hyle-field-row" key={key}>
+                {!selfLabels && <label>{label}</label>}
+                <Input />
+              </div>
+            );
+          })}
+        </div>
+      </FilterAppearanceContext.Provider>
+    </FilterContext.Provider>
   );
 }

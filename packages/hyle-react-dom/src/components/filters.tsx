@@ -1,4 +1,5 @@
 import React, { useId, createContext, useContext, createElement } from "react";
+import { FilterContext, useFilterContext } from "@tty-pt/hyle-react";
 import type { FilterProps } from "@tty-pt/hyle-react";
 import type { Row } from "@tty-pt/hyle-react";
 import type { ComponentType } from "react";
@@ -54,9 +55,11 @@ export type FilterBooleanProps = FilterProps<boolean | undefined> & {
   appearance?: "checkbox" | "select";
 };
 
-export function FilterBoolean({ label, fieldName, value, onChange, appearance: appearanceProp }: FilterBooleanProps) {
+export function FilterBoolean({ label, fieldName, value, onChange, appearance: appearanceProp, context: contextProp }: FilterBooleanProps) {
   const ctx = useContext(FilterAppearanceContext);
-  const appearance = appearanceProp ?? ctx.boolean ?? "select";
+  const context = contextProp ?? useFilterContext();
+  const appearance = appearanceProp
+    ?? (context === "form" ? "checkbox" : ctx.boolean ?? "select");
 
   if (appearance === "select") {
     const strVal = value === true ? "true" : value === false ? "false" : "";
@@ -179,7 +182,24 @@ export function FilterReference({
 
 // ── FilterFile ────────────────────────────────────────────────────────────────
 
-export function FilterFile({ label, fieldName, value, onChange }: FilterProps<string>) {
+export function FilterFile({ label, fieldName, value, onChange, field, context: contextProp }: FilterProps<File | string>) {
+  const context = contextProp ?? useFilterContext();
+  const { accept, multiple, required } = field.options ?? {};
+
+  if (context === "form") {
+    return (
+      <input
+        type="file"
+        name={fieldName}
+        aria-label={label}
+        accept={accept}
+        multiple={multiple}
+        required={required}
+        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+      />
+    );
+  }
+
   return (
     <input
       type="text"

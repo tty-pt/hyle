@@ -105,30 +105,30 @@ function makeBoolProps(overrides: Partial<FilterProps<boolean | undefined>> = {}
 
 describe("FilterBoolean — default (checkbox)", () => {
   it("renders a checkbox", () => {
-    render(<FilterBoolean {...makeBoolProps({ label: "Active" })} appearance="checkbox" />);
+    render(<FilterBoolean {...makeBoolProps({ label: "Active" })} appearance="checkbox" context="filter" />);
     expect(screen.getByRole("checkbox", { name: "Active" })).toBeDefined();
   });
 
   it("is unchecked when value is undefined", () => {
-    render(<FilterBoolean {...makeBoolProps({ value: undefined })} appearance="checkbox" />);
+    render(<FilterBoolean {...makeBoolProps({ value: undefined })} appearance="checkbox" context="filter" />);
     expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
   });
 
   it("is checked when value is true", () => {
-    render(<FilterBoolean {...makeBoolProps({ value: true })} appearance="checkbox" />);
+    render(<FilterBoolean {...makeBoolProps({ value: true })} appearance="checkbox" context="filter" />);
     expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(true);
   });
 
   it("calls onChange with true when checked", async () => {
     const onChange = vi.fn();
-    render(<FilterBoolean {...makeBoolProps({ value: undefined, onChange })} appearance="checkbox" />);
+    render(<FilterBoolean {...makeBoolProps({ value: undefined, onChange })} appearance="checkbox" context="filter" />);
     await userEvent.click(screen.getByRole("checkbox"));
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
   it("calls onChange with undefined when unchecked", async () => {
     const onChange = vi.fn();
-    render(<FilterBoolean {...makeBoolProps({ value: true, onChange })} appearance="checkbox" />);
+    render(<FilterBoolean {...makeBoolProps({ value: true, onChange })} appearance="checkbox" context="filter" />);
     await userEvent.click(screen.getByRole("checkbox"));
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
@@ -136,7 +136,7 @@ describe("FilterBoolean — default (checkbox)", () => {
 
 describe("FilterBoolean — appearance='select'", () => {
   it("renders a select with Any/Yes/No options", () => {
-    render(<FilterBoolean {...makeBoolProps({ label: "Active" })} appearance="select" />);
+    render(<FilterBoolean {...makeBoolProps({ label: "Active" })} appearance="select" context="filter" />);
     const select = screen.getByRole("combobox", { name: "Active" });
     expect(select).toBeDefined();
     expect(screen.getByRole("option", { name: "Any" })).toBeDefined();
@@ -146,21 +146,21 @@ describe("FilterBoolean — appearance='select'", () => {
 
   it("calls onChange with true when Yes is selected", async () => {
     const onChange = vi.fn();
-    render(<FilterBoolean {...makeBoolProps({ onChange })} appearance="select" />);
+    render(<FilterBoolean {...makeBoolProps({ onChange })} appearance="select" context="filter" />);
     await userEvent.selectOptions(screen.getByRole("combobox"), "Yes");
     expect(onChange).toHaveBeenCalledWith(true);
   });
 
   it("calls onChange with false when No is selected", async () => {
     const onChange = vi.fn();
-    render(<FilterBoolean {...makeBoolProps({ onChange })} appearance="select" />);
+    render(<FilterBoolean {...makeBoolProps({ onChange })} appearance="select" context="filter" />);
     await userEvent.selectOptions(screen.getByRole("combobox"), "No");
     expect(onChange).toHaveBeenCalledWith(false);
   });
 
   it("calls onChange with undefined when Any is selected", async () => {
     const onChange = vi.fn();
-    render(<FilterBoolean {...makeBoolProps({ value: true, onChange })} appearance="select" />);
+    render(<FilterBoolean {...makeBoolProps({ value: true, onChange })} appearance="select" context="filter" />);
     await userEvent.selectOptions(screen.getByRole("combobox"), "Any");
     expect(onChange).toHaveBeenCalledWith(undefined);
   });
@@ -233,10 +233,72 @@ describe("FilterReference — appearance='autocomplete'", () => {
 
 // ── FilterFile ────────────────────────────────────────────────────────────────
 
-describe("FilterFile", () => {
+describe("FilterFile — context='filter' (default)", () => {
   it("renders a text input", () => {
-    render(<FilterFile {...makeProps({ label: "File" })} />);
+    render(<FilterFile {...makeProps({ label: "File" })} context="filter" />);
     expect((screen.getByRole("textbox", { name: "File" }) as HTMLInputElement).type).toBe("text");
+  });
+});
+
+describe("FilterFile — context='form'", () => {
+  it("renders a file input", () => {
+    render(<FilterFile {...makeProps({ label: "Upload" })} context="form" />);
+    expect((screen.getByLabelText("Upload") as HTMLInputElement).type).toBe("file");
+  });
+
+  it("accept attribute is passed", () => {
+    const props = makeProps({
+      field: {
+        label: "Images",
+        type: { kind: "primitive", primitive: "file" },
+        options: { accept: "image/*" },
+      },
+      context: "form",
+    });
+    render(<FilterFile {...props} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input?.accept).toBe("image/*");
+  });
+
+  it("multiple attribute is passed", () => {
+    const props = makeProps({
+      field: {
+        label: "Files",
+        type: { kind: "primitive", primitive: "file" },
+        options: { multiple: true },
+      },
+      context: "form",
+    });
+    render(<FilterFile {...props} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input?.multiple).toBe(true);
+  });
+
+  it("required attribute is passed", () => {
+    const props = makeProps({
+      field: {
+        label: "Document",
+        type: { kind: "primitive", primitive: "file" },
+        options: { required: true },
+      },
+      context: "form",
+    });
+    render(<FilterFile {...props} />);
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(input?.required).toBe(true);
+  });
+});
+
+describe("FilterBoolean — context='form'", () => {
+  it("renders a checkbox by default (not select)", () => {
+    render(<FilterBoolean {...makeBoolProps({ label: "Enabled" })} context="form" />);
+    expect(screen.getByRole("checkbox", { name: "Enabled" })).toBeDefined();
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("still respects explicit appearance prop", () => {
+    render(<FilterBoolean {...makeBoolProps({ label: "Status" })} appearance="select" context="form" />);
+    expect(screen.getByRole("combobox", { name: "Status" })).toBeDefined();
   });
 });
 
