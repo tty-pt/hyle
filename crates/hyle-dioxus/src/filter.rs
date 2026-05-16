@@ -135,7 +135,7 @@ fn form_default_input(ff: HyleFilterField, value: String, set: Callback<String>)
 
 // ── Default input dispatch ────────────────────────────────────────────────────
 
-fn default_input(ff: HyleFilterField, value: String, set: Callback<String>, is_form: bool) -> Element {
+fn default_input(ff: HyleFilterField, value: String, set: Callback<String>, _is_form: bool) -> Element {
     match &ff.field.field_type {
         FieldType::Primitive {
             primitive: Primitive::Boolean,
@@ -147,38 +147,25 @@ fn default_input(ff: HyleFilterField, value: String, set: Callback<String>, is_f
         },
 
         FieldType::Array { .. } => {
-            // Check if input hint specifies textarea
-            let is_textarea = ff.field.options.input.as_ref()
-                .map(|i| i.kind == "textarea")
-                .unwrap_or(false);
-
-            if is_textarea {
-                let rows = ff.field.options.input.as_ref()
-                    .and_then(|i| i.props.get("rows"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("4");
-                return rsx! {
-                    label {
-                        "{ff.label}"
-                        textarea {
-                            name: "{ff.key}",
-                            rows: "{rows}",
-                            value: "{value}",
-                            oninput: move |e| set.call(e.value()),
-                            placeholder: "One type per line (e.g., folk\\nrock)",
-                        }
-                    }
-                };
-            }
-
-            match ff.options {
-                Some(options) => checkbox_reference_fieldset(ff.key, ff.label, value, options, ff.display_field_type.clone(), set),
-                None => rsx! {
+            if let Some(options) = ff.options {
+                checkbox_reference_fieldset(
+                    ff.key,
+                    ff.label,
+                    value,
+                    options,
+                    ff.display_field_type.clone(),
+                    set,
+                )
+            } else if ff.field.options.input.as_ref().map(|i| i.kind == "textarea").unwrap_or(false) {
+                // Fall through to text_input below
+                text_input(ff, value, set)
+            } else {
+                rsx! {
                     fieldset {
                         legend { "{ff.label}" }
                         span { aria_busy: "true", "Loading…" }
                     }
-                },
+                }
             }
         }
 
@@ -335,20 +322,44 @@ fn checkbox_reference_fieldset(
 }
 
 fn text_input(ff: HyleFilterField, value: String, set: Callback<String>) -> Element {
-    let input_type = ff
+    let kind = ff
         .field
         .options
         .input
         .as_ref()
-        .map(|i| i.kind.clone())
-        .unwrap_or_else(|| "text".to_owned());
+        .map(|i| i.kind.as_str())
+        .unwrap_or("text");
+
+    if kind == "textarea" {
+        let rows = ff
+            .field
+            .options
+            .input
+            .as_ref()
+            .and_then(|i| i.props.get("rows"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(4);
+        return rsx! {
+            label {
+                "{ff.label}"
+                textarea {
+                    name: "{ff.key}",
+                    aria_label: "{ff.label}",
+                    rows: "{rows}",
+                    oninput: move |e| set.call(e.value()),
+                    "{value}"
+                }
+            }
+        };
+    }
 
     rsx! {
         label {
             "{ff.label}"
             input {
-                r#type: "{input_type}",
+                r#type: "{kind}",
                 name: "{ff.key}",
+                aria_label: "{ff.label}",
                 placeholder: "{ff.label}",
                 value: "{value}",
                 oninput: move |e| set.call(e.value()),

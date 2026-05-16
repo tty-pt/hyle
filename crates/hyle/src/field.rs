@@ -131,6 +131,16 @@ impl Field {
         .with_input(InputHint::new("text"))
     }
 
+    pub fn textarea(label: impl Into<String>, rows: u32) -> Self {
+        Self::new(
+            label,
+            FieldType::Primitive {
+                primitive: Primitive::String,
+            },
+        )
+        .with_input(InputHint::new("textarea").with_prop("rows", rows))
+    }
+
     pub fn number(label: impl Into<String>) -> Self {
         Self::new(
             label,

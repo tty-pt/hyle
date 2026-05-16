@@ -3,6 +3,7 @@ members = [
     "crates/hyle",
     "crates/hyle-dioxus",
     "crates/hyle-dioxus-native",
+    "crates/hyle-ndc-dataset",
     "examples/dioxus",
 ]
 resolver = "2"
