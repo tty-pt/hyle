@@ -125,6 +125,8 @@
   margin: 0;
   flex: 1 1 160px;
   background: var(--hyle-color-surface);
+  max-height: 70px;
+  overflow-y: auto;
 }
 
 .hyle-filter-bar fieldset legend {
