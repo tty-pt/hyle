@@ -21,15 +21,12 @@ wait_for_url() {
 
 # ── Environment ────────────────────────────────────────────────────────────────
 
-LIBQMAP_DIR=$(cd "$REPO/../libqmap/lib" && pwd)
-export LD_LIBRARY_PATH="$LIBQMAP_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-
 # ── Unit tests ────────────────────────────────────────────────────────────────
 
 echo "==> Running Rust unit tests..."
 cargo test -p hyle --manifest-path "$REPO/Cargo.toml"
 cargo test -p hyle-dioxus --manifest-path "$REPO/Cargo.toml"
-LD_LIBRARY_PATH="$REPO/../libqmap/lib" cargo test -p hyle-ndc-dataset --manifest-path "$REPO/Cargo.toml"
+cargo test -p hyle-source-qmap --manifest-path "$REPO/Cargo.toml"
 
 echo "==> Running hyle-react unit tests..."
 npm test --prefix "$REPO/packages/hyle-react"

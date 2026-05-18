@@ -1,0 +1,15 @@
+[package]
+name = "hyle-source-qmap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Native hyle struct generation from ndc qmaps"
+
+[dependencies]
+hyle.workspace = true
+qmap = { package = "qmap-rs", path = "../../../libqmap/rust-bindings" }
+serde.workspace = true
+serde_json.workspace = true
+indexmap.workspace = true
+libc = "0.2"

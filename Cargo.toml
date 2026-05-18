@@ -3,14 +3,14 @@ members = [
     "crates/hyle",
     "crates/hyle-dioxus",
     "crates/hyle-dioxus-native",
-    "crates/hyle-ndc-dataset",
+    "crates/hyle-source-qmap",
     "examples/dioxus",
 ]
 resolver = "2"
 
 [workspace.package]
 edition = "2024"
-version = "0.1.7"
+version = "0.1.9"
 license = "BSD-2-Clause"
 repository = "https://github.com/tty-pt/hyle"
 
