@@ -133,18 +133,18 @@ pub fn HyleTableBody(
                                                         if i == 0 {
                                                             if let Some(ref url) = href {
                                                                 rsx! {
-                                                                    td { key: "{col.key}",
+                                                                    td { key: "{col.key}", "data-label": "{col.label}",
                                                                         a { href: "{url}", {cell_content} }
                                                                     }
                                                                 }
                                                             } else {
                                                                 rsx! {
-                                                                    td { key: "{col.key}", {cell_content} }
+                                                                    td { key: "{col.key}", "data-label": "{col.label}", {cell_content} }
                                                                 }
                                                             }
                                                         } else {
                                                             rsx! {
-                                                                td { key: "{col.key}", {cell_content} }
+                                                                td { key: "{col.key}", "data-label": "{col.label}", {cell_content} }
                                                             }
                                                         }
                                                     }

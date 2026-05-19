@@ -266,7 +266,7 @@ fn checkbox_reference_fieldset(
     let blueprint = use_context::<HyleConfig>().blueprint;
 
     rsx! {
-        fieldset {
+        fieldset { class: "hyle-checkbox-filter",
             legend { "{label}" }
             for (id, display) in options {
                 label {
