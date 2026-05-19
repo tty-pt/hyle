@@ -2,59 +2,24 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    tags: [ 'v*' ]
   pull_request:
 
 jobs:
-  rust:
-    name: Rust tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-
-      - name: cargo test -p hyle
-        run: cargo test -p hyle
-
-      - name: cargo test -p hyle-dioxus
-        run: cargo test -p hyle-dioxus
-
-  npm:
-    name: npm build & test (${{ matrix.package }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        package: [hyle-react, hyle-react-dom]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: packages/${{ matrix.package }}/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-        working-directory: packages/${{ matrix.package }}
-
-      - name: Build
-        run: npm run build
-        working-directory: packages/${{ matrix.package }}
-
-      - name: Test
-        run: npm test
-        working-directory: packages/${{ matrix.package }}
+  build:
+    uses: tty-pt/ci/.github/workflows/all-in-one.yml@main
+    with:
+      name: libhyle
+      deps: "libqmap"
+      deps_winget_tty: "libqsys,libqmap"
+      publish_to: "deb,apk,rpm,brew,openbsd,winget"
+    secrets:
+      HOST: ${{ secrets.OPENBSD_HOST }}
+      USER: ${{ secrets.OPENBSD_USER }}
+      SSH_KEY: ${{ secrets.OPENBSD_SSH_KEY }}
+      GPG_PRIVATE_KEY: ${{ secrets.OPENBSD_GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.OPENBSD_GPG_PASSPHRASE }}
+      GPG_KEYID: ${{ secrets.OPENBSD_GPG_KEY_ID }}
+      ABUILD_PRIVATE_KEY: ${{ secrets.ABUILD_PRIVATE_KEY }}
+      ABUILD_PUBLIC_KEY: ${{ secrets.ABUILD_PUBLIC_KEY }}
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}

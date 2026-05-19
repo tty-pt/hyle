@@ -25,3 +25,4 @@ indexmap = { version = "2", features = ["serde"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 axum = { version = "0.8", optional = true }
+manganis = "=0.7.7"

@@ -6,19 +6,18 @@ use dioxus::prelude::Element;
 use dioxus_signals::{Memo, ReadSignal, Signal};
 use indexmap::IndexMap;
 
-use hyle::{Blueprint, Field, FieldType, HyleDataState, MutateInput, Outcome, Primitive, PurifyError, Query, Source, Value};
-use serde_json::Value as JsonValue;
-
+use hyle::{Blueprint, Field, FieldType, MutateInput, Outcome, Primitive, Query, Source, Value};
+use crate::adapter::{HyleDataState, FieldChange};
 /// Internal model name used by `use_forma` for its synthetic query.
 pub(crate) const FORMA_MODEL: &str = "forma";
 // ── Dioxus-specific HyleFilterField ──────────────────────────────────────────
 
-/// Dioxus specialisation of `hyle::HyleFilterField` — the `render` field
+/// Dioxus specialisation of `HyleFilterField` — the `render` field
 /// carries an optional per-field Dioxus render closure.
-pub type HyleFilterField = hyle::HyleFilterField<Rc<dyn Fn(HyleFilterFieldProps) -> Element>>;
+pub type HyleFilterField = crate::adapter::HyleFilterField<Rc<dyn Fn(HyleFilterFieldProps) -> Element>>;
 
 /// A single per-field Dioxus transform function.
-pub type DioxusFieldChangeFn = Rc<dyn Fn(&Field) -> Option<hyle::FieldChange<Rc<dyn Fn(HyleFilterFieldProps) -> Element>>>>;
+pub type DioxusFieldChangeFn = Rc<dyn Fn(&Field) -> Option<FieldChange<Rc<dyn Fn(HyleFilterFieldProps) -> Element>>>>;
 
 /// A map of per-field Dioxus transform functions (keyed by field name).
 pub type DioxusFieldChangeMap = HashMap<String, DioxusFieldChangeFn>;
@@ -44,20 +43,20 @@ pub struct UseFormOptions {
 impl UseFormOptions {
     /// Add a plain field transform (no render override).
     ///
-    /// The closure receives the current [`hyle::Field`] and returns
+    /// The closure receives the current [`Field`] and returns
     /// `Some(FieldChange { .. })` to override label / metadata, or `None` to
     /// leave it unchanged.  Use [`FieldChange::label`] for the common case.
     pub fn with_change(
         mut self,
         key: &str,
-        f: impl Fn(&hyle::Field) -> Option<hyle::FieldChange> + 'static,
+        f: impl Fn(&Field) -> Option<FieldChange> + 'static,
     ) -> Self {
         self.change
             .get_or_insert_with(HashMap::new)
             .insert(
                 key.to_owned(),
-                Rc::new(move |field: &hyle::Field| {
-                    f(field).map(|fc| hyle::FieldChange {
+                Rc::new(move |field: &Field| {
+                    f(field).map(|fc| FieldChange {
                         field: fc.field,
                         render: None,
                     })
@@ -136,7 +135,7 @@ pub struct HyleMutation {
 /// Input for a [`BoundMutation`] — like [`MutateInput`] but without `model`.
 #[derive(Clone, Default)]
 pub struct BoundMutateInput {
-    pub id: Option<JsonValue>,
+    pub id: Option<Value>,
     pub data: IndexMap<String, String>,
 }
 
@@ -169,8 +168,6 @@ pub struct HyleFiltersState {
     pub filter_apply: Callback<()>,
     pub filter_clear: Callback<()>,
     pub filter_reset_key: Signal<u32>,
-    pub validate: Callback<()>,
-    pub purify_errors: Signal<Option<Vec<PurifyError>>>,
 }
 
 // ── Value components ──────────────────────────────────────────────────────────

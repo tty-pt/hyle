@@ -144,7 +144,7 @@ export function FilterReference({
           name={fieldName}
           aria-label={label}
           placeholder={label}
-          value={value}
+      value={value as string}
           list={listId}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -184,7 +184,9 @@ export function FilterReference({
 
 export function FilterFile({ label, fieldName, value, onChange, field, context: contextProp }: FilterProps<File | string>) {
   const context = contextProp ?? useFilterContext();
-  const { accept, multiple, required } = field.options ?? {};
+  const accept   = (field.options?.accept   ?? field.options?.metadata?.['accept'])   as string  | undefined;
+  const multiple = (field.options?.multiple ?? field.options?.metadata?.['multiple']) as boolean | undefined;
+  const required = (field.options?.required ?? field.options?.metadata?.['required']) as boolean | undefined;
 
   if (context === "form") {
     return (
@@ -195,7 +197,7 @@ export function FilterFile({ label, fieldName, value, onChange, field, context: 
         accept={accept}
         multiple={multiple}
         required={required}
-        onChange={(e) => onChange(e.target.files?.[0] ?? null)}
+        onChange={(e) => onChange(e.target.files?.[0] ?? '')}
       />
     );
   }
@@ -206,7 +208,7 @@ export function FilterFile({ label, fieldName, value, onChange, field, context: 
       name={fieldName}
       aria-label={label}
       placeholder={label}
-      value={value}
+      value={value as string}
       onChange={(e) => onChange(e.target.value)}
     />
   );

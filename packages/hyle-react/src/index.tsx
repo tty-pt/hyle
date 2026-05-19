@@ -119,7 +119,7 @@ export type HyleFieldComponents = {
   FilterString?: ComponentType<FilterProps<string>>;
   FilterNumber?: ComponentType<FilterProps<string>>;
   FilterBoolean?: ComponentType<FilterProps<boolean | undefined>>;
-  FilterFile?: ComponentType<FilterProps<string>>;
+  FilterFile?: ComponentType<FilterProps<string | File>>;
   FilterReference?: ComponentType<FilterProps<string>>;
   FilterArray?: ComponentType<FilterProps<unknown>>;
   FilterShape?: ComponentType<FilterProps<unknown>>;

@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use hyle::HyleDataState;
+use hyle_dioxus::HyleDataState;
 use hyle_dioxus::{use_context_provider, use_hyle_components, field_type_key, HyleFiltersState, HyleListState, HyleValueProps, FilterField, HyleConfig};
 
 #[cfg(target_arch = "wasm32")]
@@ -133,18 +133,18 @@ pub fn HyleTableBody(
                                                         if i == 0 {
                                                             if let Some(ref url) = href {
                                                                 rsx! {
-                                                                    td { key: "{col.key}",
+                                                                    td { key: "{col.key}", "data-label": "{col.label}",
                                                                         a { href: "{url}", {cell_content} }
                                                                     }
                                                                 }
                                                             } else {
                                                                 rsx! {
-                                                                    td { key: "{col.key}", {cell_content} }
+                                                                    td { key: "{col.key}", "data-label": "{col.label}", {cell_content} }
                                                                 }
                                                             }
                                                         } else {
                                                             rsx! {
-                                                                td { key: "{col.key}", {cell_content} }
+                                                                td { key: "{col.key}", "data-label": "{col.label}", {cell_content} }
                                                             }
                                                         }
                                                     }
@@ -247,6 +247,7 @@ pub fn HyleTablePagination(list: HyleListState) -> Element {
 
     let page = *list.page.read();
     let per_page = *list.per_page.read();
+    let filters: Option<HyleFiltersState> = dioxus_core::has_context::<HyleFiltersState>();
     let mut page_sig = list.page;
     let mut per_page_sig = list.per_page;
     let mut page_sig2 = list.page;
@@ -264,6 +265,9 @@ pub fn HyleTablePagination(list: HyleListState) -> Element {
                     disabled: page <= 1,
                     onclick: move |e| {
                         e.prevent_default();
+                        if let Some(fs) = filters {
+                            fs.filter_apply.call(());
+                        }
                         page_sig.with_mut(|p| *p = p.saturating_sub(1).max(1));
                     },
                     "← Prev"
@@ -276,6 +280,9 @@ pub fn HyleTablePagination(list: HyleListState) -> Element {
                     disabled: row_count < per_page,
                     onclick: move |e| {
                         e.prevent_default();
+                        if let Some(fs) = filters {
+                            fs.filter_apply.call(());
+                        }
                         page_sig2.with_mut(|p| *p += 1);
                     },
                     "Next →"
@@ -285,6 +292,9 @@ pub fn HyleTablePagination(list: HyleListState) -> Element {
                     value: "{per_page}",
                     onchange: move |e| {
                         if let Ok(n) = e.value().parse::<usize>() {
+                            if let Some(fs) = filters {
+                                fs.filter_apply.call(());
+                            }
                             per_page_sig.set(n);
                             page_sig.set(1);
                         }

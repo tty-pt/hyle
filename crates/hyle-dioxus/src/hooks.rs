@@ -1,12 +1,12 @@
 use dioxus_hooks::{use_callback, use_memo, use_signal, use_context};
 use dioxus_signals::{Memo, ReadableExt, WritableExt};
 use indexmap::IndexMap;
-use serde_json::Value as JsonValue;
-
 use hyle::{
+    Forma, MutateInput, Query, Value,
+};
+use crate::adapter::{
     build_effective_query, build_filter_fields, compute_data, compute_forma_result,
-    compute_manifest, run_purify,
-    Forma, MutateInput, PurifyError, Query, Value,
+    compute_manifest,
     HyleDataState, HyleManifestState, UseFormaOptions,
 };
 
@@ -123,12 +123,11 @@ pub fn use_list_with_filters(filters: HyleFiltersState) -> HyleListState {
     HyleListState { data, query: effective_query, page, per_page, sort_field, sort_ascending }
 }
 
-/// Reactive filter/form state with validation.
+/// Reactive filter/form state.
 ///
 /// - `set_field` updates `form_data` without committing.
 /// - `filter_apply` merges `form_data` into the effective `where_` clause.
 /// - `filter_clear` resets both `form_data` and committed state.
-/// - `validate` runs `purify_row_sync` and updates `purify_errors`.
 ///
 /// When `query.where_` contains an `"id"` key, `use_data` is called internally
 /// to seed `form_data` from the existing record.
@@ -144,7 +143,6 @@ pub fn use_filters(
     let mut committed = use_signal(move || initial.clone());
     let mut form_data = use_signal(move || initial2.clone());
     let mut filter_reset_key = use_signal(|| 0u32);
-    let mut purify_errors = use_signal(|| Option::<Vec<PurifyError>>::None);
     let change = options.change;
 
     // When an id is present, fetch the existing record to seed form_data.
@@ -159,7 +157,6 @@ pub fn use_filters(
     let seed_data = use_data(seed_query);
 
     let bp_for_fields = config.blueprint.clone();
-    let bp_for_validate = config.blueprint.clone();
 
     // Guard against re-seeding form_data on subsequent memo evaluations.
     // Writing a signal inside a use_memo would cause Dioxus SSR to
@@ -213,7 +210,7 @@ pub fn use_filters(
             _ => vec![],
         };
         if let Some(ref c) = change {
-            hyle::apply_change(raw_fields, c)
+            crate::adapter::apply_change(raw_fields, c)
         } else {
             raw_fields
         }
@@ -240,20 +237,6 @@ pub fn use_filters(
         filter_reset_key.with_mut(|k| *k += 1);
     });
 
-    let validate = use_callback(move |()| {
-        let snapshot = form_data.cloned();
-        let model_name = effective_query.read().model.clone();
-        let active_keys: std::collections::HashSet<String> =
-            fields.read().iter().map(|f| f.key.clone()).collect();
-        let active_snapshot: IndexMap<String, String> = snapshot
-            .iter()
-            .filter(|(k, _)| active_keys.contains(*k))
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-        let errors = run_purify(&bp_for_validate, &model_name, &active_snapshot);
-        purify_errors.set(errors);
-    });
-
     HyleFiltersState {
         query: effective_query,
         fields,
@@ -262,8 +245,6 @@ pub fn use_filters(
         filter_apply,
         filter_clear,
         filter_reset_key,
-        validate,
-        purify_errors,
     }
 }
 
@@ -296,21 +277,15 @@ pub fn use_form(
         },
     );
 
-    let is_valid = filters.purify_errors.read().is_none();
-
     let on_submit = use_callback(move |()| {
-        filters.validate.call(());
-        if filters.purify_errors.read().is_some() {
-            return;
-        }
         let snapshot = filters.form_data.cloned();
         let id = snapshot.get("id").map(|v| {
-            v.parse::<u64>().map(JsonValue::from).unwrap_or_else(|_| JsonValue::String(v.clone()))
+            v.parse::<i64>().map(Value::Int).unwrap_or_else(|_| Value::String(v.clone()))
         });
         mutation.mutate.call(MutateInput { model: model.clone(), id, data: snapshot });
     });
 
-    crate::types::HyleFormState { filters, is_edit, is_valid, on_submit, mutation }
+    crate::types::HyleFormState { filters, is_edit, is_valid: true, on_submit, mutation }
 }
 
 /// Returns create/update/delete mutation handles with `model` pre-bound.
@@ -347,14 +322,14 @@ pub fn use_mutation(model: &'static str) -> crate::types::BoundMutations {
 #[must_use]
 pub fn use_forma(
     table_name: &'static str,
-    id: Option<JsonValue>,
+    id: Option<Value>,
     opts: UseFormaOptions,
 ) -> Memo<(Option<Query>, Option<Forma>)> {
     use crate::types::FORMA_MODEL;
 
     let forma_query = Query {
         model: FORMA_MODEL.to_owned(),
-        where_: indexmap::indexmap! { "id".to_owned() => JsonValue::String(table_name.to_owned()) },
+        where_: indexmap::indexmap! { "id".to_owned() => Value::String(table_name.to_owned()) },
         method: Some("one".to_owned()),
         select: vec![
             "fields".to_owned(),
@@ -388,9 +363,7 @@ pub fn use_forma(
 /// assert_eq!(body["name"], Value::String("Alice".into()));
 /// ```
 pub fn form_body(data: &IndexMap<String, String>) -> Value {
-    let map: serde_json::Map<String, Value> = data
-        .iter()
+    Value::Map(data.iter()
         .map(|(k, v)| (k.clone(), Value::String(v.clone())))
-        .collect();
-    Value::Object(map)
+        .collect())
 }
