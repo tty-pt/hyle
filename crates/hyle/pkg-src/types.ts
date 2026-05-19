@@ -16,6 +16,9 @@ export type FieldOptions = {
   fixedValue?: unknown;
   rule?: string;
   metadata?: Record<string, unknown>;
+  accept?: string;
+  multiple?: boolean;
+  required?: boolean;
 };
 
 export type Field = {

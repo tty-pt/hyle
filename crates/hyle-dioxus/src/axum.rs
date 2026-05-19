@@ -5,7 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use dioxus::server::{FullstackState, ServeConfig};
-use hyle::FormErrors;
+use crate::adapter::FormErrors;
 
 /// Axum extension for re-rendering Dioxus pages with [`FormErrors`] injected.
 ///

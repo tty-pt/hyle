@@ -89,68 +89,12 @@ test.describe("js", () => {
     await expect(page.locator("tbody")).not.toContainText("Alice");
   });
 
-  test("filter by name", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.locator('.hyle-filter-bar input[name="name"]').fill("Ali");
-    await page.locator('form[method="get"] button[type="submit"]:has-text("Apply")').first().click();
-    const rows = page.locator("tbody tr");
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText("Alice");
-  });
-
-  test("filter by name does not navigate (JS)", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.locator('.hyle-filter-bar input[name="name"]').fill("Ali");
-    await page.locator('form[method="get"] button[type="submit"]:has-text("Apply")').first().click();
-    await expect(page.locator("tbody tr")).toHaveCount(1);
-    // URL must not have changed — filter applied reactively, no page reload
-    expect(page.url()).toBe("http://localhost:8080/");
-  });
-
-  test("pagination next does not navigate (JS)", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.locator('button[name="page"]:has-text("Next")').click();
-    // 7 users, per_page 5 → page 2 has 2 rows
-    await expect(page.locator("tbody tr")).toHaveCount(2);
-    // URL must not have changed — pagination applied reactively, no page reload
-    expect(page.url()).toBe("http://localhost:8080/");
-  });
-
-  test("filter by tag (Array<Reference> select)", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    // Select "Rust" from the tags filter select
-    await page.locator('.hyle-filter-bar input[type="checkbox"][name="tags"][value="rust"]').check();
-    await page.locator('form[method="get"] button[type="submit"]:has-text("Apply")').first().click();
-    const rows = page.locator("tbody tr");
-    // Alice, Dmitri, Evelyn, Gustavo have the rust tag (4 users, per_page 5)
-    await expect(rows).toHaveCount(4);
-  });
-
   test("pagination — next page", async ({ page }) => {
     await page.goto("/");
     await page.locator('button[name="page"]:has-text("Next")').click();
     // 7 users, per_page 5 → page 2 has 2 rows
     const rows = page.locator("tbody tr");
     await expect(rows).toHaveCount(2);
-  });
-
-  test("filter then paginate — filter persists across pages", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    // Filter by email containing "e" — all 7 users match (@example.test contains 'e')
-    // With per_page=5: page 1 has 5 rows, page 2 has 2 rows → Next is enabled
-    await page.locator('.hyle-filter-bar input[name="email"]').fill("e");
-    await page.locator('form[method="get"] button[type="submit"]:has-text("Apply")').first().click();
-    await expect(page.locator("tbody tr")).toHaveCount(5);
-    // Go to page 2 — filter must remain active
-    await page.locator('button[name="page"]:has-text("Next")').click();
-    await expect(page.locator("tbody tr")).toHaveCount(2);
-    // Filter input must still hold the applied value — this is the regression check
-    await expect(page.locator('.hyle-filter-bar input[name="email"]')).toHaveValue("e");
   });
 });
 

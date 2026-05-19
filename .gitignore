@@ -7,3 +7,9 @@ node_modules
 **/dist/*
 target/*
 **/test-results/*
+/lib
+/bin
+*.o
+/zig-bindings/.zig-cache/
+/zig-bindings/libhyle_zig.a
+/zig-bindings/zig-out/

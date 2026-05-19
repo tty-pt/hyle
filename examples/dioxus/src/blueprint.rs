@@ -1,5 +1,4 @@
-use hyle::{Blueprint, Field, FieldType, Model, Reference};
-use serde_json::json;
+use hyle::{Blueprint, Field, FieldType, Model, Reference, Value};
 
 pub fn make_blueprint() -> Blueprint {
     Blueprint::new()
@@ -7,8 +6,8 @@ pub fn make_blueprint() -> Blueprint {
             "user",
             Model::new()
                 .field("name", Field::string("Name")
-                    .with_metadata("required", json!(true))
-                    .with_metadata("minLength", json!(2)))
+                    .with_metadata("required", Value::Bool(true))
+                    .with_metadata("minLength", Value::Int(2)))
                 .field("email", Field::string("Email"))
                 .field("role", Field::reference("Role", "role"))
                 .field(

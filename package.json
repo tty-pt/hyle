@@ -11,7 +11,7 @@
     "build:libs": "npm run build:wasm && npm run build:libs:rust && npm run build:libs:react",
     "build:dioxus": "cd examples/dioxus && ~/.cargo/bin/dx build --platform web",
     "build:react": "npm run build:wasm --prefix examples/react && npm run build:vite --prefix examples/react",
-    "build": "npm run build:dioxus && npm run build:react",
+    "build": "npm run build:libs && npm run build:dioxus && npm run build:react",
     "test:all": "npm run build && npm test"
   },
   "devDependencies": {

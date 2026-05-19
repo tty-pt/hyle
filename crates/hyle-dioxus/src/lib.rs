@@ -22,6 +22,7 @@ mod filter;
 mod hooks;
 mod query;
 mod types;
+pub mod adapter;
 #[cfg(feature = "axum")]
 pub mod axum;
 #[cfg(feature = "axum")]
@@ -42,12 +43,21 @@ pub use types::{
     HyleSourceState, HyleValueProps, UseFiltersOptions, UseFormOptions,
     UseSource,
 };
+pub use adapter::{
+    apply_change, build_effective_query, build_filter_fields, compute_data, compute_forma_result,
+    compute_manifest, run_purify, AdapterFiltersOptions, AdapterFormOptions, FieldChange,
+    FieldChangeFn, FieldChangeMap, FormErrors, HyleDataField, HyleDataState,
+    HyleManifestState, UseFormaOptions,
+};
 
 // Re-export hyle types that callers need when building blueprints and queries.
 pub use hyle::{
     Blueprint, Column, Field, FieldType, Forma, FormaContext, FormaField, FormaFieldType, Manifest,
     Model, Primitive, PurifyError, Query, Row, Sort, Source, Value,
 };
+
+/// The default component stylesheet for hyle UI components.
+pub static CSS: manganis::Asset = manganis::asset!("assets/hyle.css");
 
 // ── Adapter config macro ──────────────────────────────────────────────────────
 

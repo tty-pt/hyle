@@ -27,6 +27,7 @@ dioxus = { workspace = true, features = ["fullstack", "server"] }
 axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.6", features = ["cors"] }
+hyle = { path = "../../crates/hyle", features = ["csource"] }
 hyle-dioxus = { path = "../../crates/hyle-dioxus", features = ["axum"] }
 dioxus-fullstack = { version = "=0.7.7" }
 

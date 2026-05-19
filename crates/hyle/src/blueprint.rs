@@ -5,7 +5,6 @@ use crate::error::{Error, HyleResult};
 use crate::field::{Field, FieldType};
 use crate::query::{Manifest, Query};
 use crate::raw::{ModelRows, Outcome, Row, Source, value_to_lookup_key};
-use crate::view::{apply_view, derive_columns, Column};
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Model {
@@ -40,16 +39,7 @@ pub struct Blueprint {
     pub models: IndexMap<String, Model>,
 }
 
-/// Output of [`Blueprint::resolve_and_view`].
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ResolvedView {
-    pub outcome: Outcome,
-    pub rows: Vec<Row>,
-    pub is_single: bool,
-    pub columns: Vec<Column>,
-}
-
+/// Output of [`Blueprint::resolve_query`].
 impl Blueprint {
     pub fn new() -> Self {
         Self::default()
@@ -167,20 +157,6 @@ impl Blueprint {
         Ok((manifest, outcome, rows))
     }
 
-    /// resolve + apply_view + is_single + derive_columns in one call.
-    ///
-    /// Returns a [`ResolvedView`] containing the filtered/sorted/paginated rows,
-    /// whether the result represents a single record, and the column metadata —
-    /// collapsing what would otherwise be 4–5 separate WASM round-trips.
-    pub fn resolve_and_view(&self, manifest: &Manifest, source: &Source) -> HyleResult<ResolvedView> {
-        let outcome = self.resolve(manifest, source)?;
-        let all_rows = outcome.rows.rows();
-        let rows = apply_view(all_rows, manifest);
-        let is_single = crate::raw::is_single(manifest, &outcome);
-        let columns = derive_columns(self, manifest)?;
-        Ok(ResolvedView { outcome, rows, is_single, columns })
-    }
-
     pub fn resolve(&self, manifest: &Manifest, source: &Source) -> HyleResult<Outcome> {
         let base = source
             .get(&manifest.base)
@@ -271,10 +247,9 @@ fn _assert_rows_send_sync(_: ModelRows) {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Value;
     use crate::field::Field;
     use crate::raw::ModelResult;
-    use serde_json::json;
-
     fn simple_blueprint() -> Blueprint {
         Blueprint::new()
             .model(
@@ -297,10 +272,10 @@ mod tests {
             "user".into(),
             ModelResult::many(vec![
                 indexmap::indexmap! {
-                    "id".to_owned()   => json!(1),
-                    "name".to_owned() => json!("Alice"),
-                    "email".to_owned()=> json!("alice@example.test"),
-                    "role".to_owned() => json!("admin"),
+                    "id".to_owned()   => Value::Int(1),
+                    "name".to_owned() => Value::String("Alice".to_owned()),
+                    "email".to_owned()=> Value::String("alice@example.test".to_owned()),
+                    "role".to_owned() => Value::String("admin".to_owned()),
                 },
             ]),
         );
@@ -308,8 +283,8 @@ mod tests {
             "role".into(),
             ModelResult::many(vec![
                 indexmap::indexmap! {
-                    "id".to_owned()   => json!("admin"),
-                    "name".to_owned() => json!("Admin"),
+                    "id".to_owned()   => Value::String("admin".to_owned()),
+                    "name".to_owned() => Value::String("Admin".to_owned()),
                 },
             ]),
         );
@@ -413,35 +388,5 @@ mod tests {
         };
         let src = user_source();
         assert!(matches!(bp.resolve(&manifest, &src), Err(Error::MissingBaseModel(_))));
-    }
-
-    // ── resolve_and_view ──────────────────────────────────────────────────────
-
-    #[test]
-    fn resolve_and_view_end_to_end() {
-        let bp = simple_blueprint();
-        let q = Query::new("user").select(["name", "email"]);
-        let m = bp.manifest(q).unwrap();
-        let src = user_source();
-        let view = bp.resolve_and_view(&m, &src).unwrap();
-        assert_eq!(view.rows.len(), 1);
-        assert_eq!(view.rows[0]["name"], json!("Alice"));
-        assert_eq!(view.columns.len(), 2);
-        assert!(!view.is_single);
-    }
-
-    #[test]
-    fn resolve_and_view_single_record() {
-        let bp = simple_blueprint();
-        let q = Query {
-            model: "user".into(),
-            select: vec!["name".into()],
-            method: Some("one".into()),
-            ..Default::default()
-        };
-        let m = bp.manifest(q).unwrap();
-        let src = user_source();
-        let view = bp.resolve_and_view(&m, &src).unwrap();
-        assert!(view.is_single);
     }
 }

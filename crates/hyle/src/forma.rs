@@ -1,8 +1,7 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
+use crate::Value;
 
-use crate::field::{Field, ShapeField};
 use crate::query::Query;
 
 /// How a forma field type is described in a runtime forma definition.
@@ -40,7 +39,7 @@ pub struct FormaField {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub column_type: Option<FormaFieldType>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fixed_value: Option<JsonValue>,
+    pub fixed_value: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
 }
@@ -83,7 +82,7 @@ pub fn forma_to_query(
     forma: &Forma,
     table_name: &str,
     context: &FormaContext,
-    id: Option<&JsonValue>,
+    id: Option<&Value>,
 ) -> Query {
     // Pick which field names are active for this context
     let context_names: Option<&Vec<String>> = match context {
@@ -120,60 +119,56 @@ pub fn forma_to_query(
     }
 }
 
-/// Map a `FormaField` to a hyle `Field`.
-#[allow(dead_code)]
-pub(crate) fn forma_field_to_field(sf: &FormaField, context: &FormaContext) -> Field {
-    // Pick context-specific type override if present
-    let ftype = match context {
-        FormaContext::Detail => sf.detail_type.as_ref().unwrap_or(&sf.field_type),
-        FormaContext::Form => sf.form_type.as_ref().unwrap_or(&sf.field_type),
-        FormaContext::Column => sf.column_type.as_ref().unwrap_or(&sf.field_type),
-    };
-
-    let mut field = forma_field_type_to_field(&sf.label, ftype);
-
-    if let Some(fixed) = &sf.fixed_value {
-        field.options.fixed_value = Some(fixed.clone());
-    }
-    if let Some(rule) = &sf.rule {
-        field.options.rule = Some(rule.clone());
-    }
-
-    field
-}
-
-#[allow(dead_code)]
-fn forma_field_type_to_field(label: &str, ftype: &FormaFieldType) -> Field {
-    match ftype {
-        FormaFieldType::Named(name) => match name.as_str() {
-            "string" => Field::string(label),
-            "number" => Field::number(label),
-            "boolean" => Field::boolean(label),
-            "file" => Field::file(label),
-            entity => Field::reference(label, entity),
-        },
-        FormaFieldType::Array { array } => {
-            let item_field = forma_field_type_to_field(label, array);
-            Field::array(label, item_field.field_type)
-        }
-        FormaFieldType::Shape { shape } => {
-            let mut shape_fields = IndexMap::new();
-            for sf in shape {
-                let f = forma_field_type_to_field(&sf.label, &sf.field_type);
-                shape_fields.insert(
-                    sf.name.clone(),
-                    ShapeField::new(&sf.label, f.field_type),
-                );
-            }
-            Field::shape(label, shape_fields)
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use crate::field::{Field, ShapeField};
+    /// Map a `FormaField` to a hyle `Field`.
+    fn forma_field_to_field(sf: &FormaField, context: &FormaContext) -> Field {
+        let ftype = match context {
+            FormaContext::Detail => sf.detail_type.as_ref().unwrap_or(&sf.field_type),
+            FormaContext::Form => sf.form_type.as_ref().unwrap_or(&sf.field_type),
+            FormaContext::Column => sf.column_type.as_ref().unwrap_or(&sf.field_type),
+        };
+
+        let mut field = forma_field_type_to_field(&sf.label, ftype);
+
+        if let Some(fixed) = &sf.fixed_value {
+            field.options.fixed_value = Some(fixed.clone());
+        }
+        if let Some(rule) = &sf.rule {
+            field.options.rule = Some(rule.clone());
+        }
+
+        field
+    }
+
+    fn forma_field_type_to_field(label: &str, ftype: &FormaFieldType) -> Field {
+        match ftype {
+            FormaFieldType::Named(name) => match name.as_str() {
+                "string" => Field::string(label),
+                "number" => Field::number(label),
+                "boolean" => Field::boolean(label),
+                "file" => Field::file(label),
+                entity => Field::reference(label, entity),
+            },
+            FormaFieldType::Array { array } => {
+                let item_field = forma_field_type_to_field(label, array);
+                Field::array(label, item_field.field_type)
+            }
+            FormaFieldType::Shape { shape } => {
+                let mut shape_fields = IndexMap::new();
+                for sf in shape {
+                    let f = forma_field_type_to_field(&sf.label, &sf.field_type);
+                    shape_fields.insert(
+                        sf.name.clone(),
+                        ShapeField::new(&sf.label, f.field_type),
+                    );
+                }
+                Field::shape(label, shape_fields)
+            }
+        }
+    }
 
     #[test]
     fn forma_to_query_column_context() {
@@ -215,8 +210,8 @@ mod tests {
             ..Default::default()
         };
 
-        let query = forma_to_query(&forma, "user", &FormaContext::Form, Some(&json!(42)));
-        assert_eq!(query.where_.get("id"), Some(&json!(42)));
+        let query = forma_to_query(&forma, "user", &FormaContext::Form, Some(&Value::Int(42)));
+        assert_eq!(query.where_.get("id"), Some(&Value::Int(42)));
         assert_eq!(query.method, Some("one".to_owned()));
     }
 

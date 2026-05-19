@@ -1,0 +1,10 @@
+CFLAGS-libhyle-o := -fPIC
+CFLAGS-ctx-o := -fPIC
+CFLAGS-value-o := -fPIC
+CFLAGS-query-o := -fPIC
+CFLAGS-view-o := -fPIC
+CFLAGS-field-o := -fPIC
+CFLAGS-blueprint-o := -fPIC
+CFLAGS-purify-o := -fPIC
+CFLAGS-source-o := -fPIC
+CFLAGS-hyle_test-o :=
