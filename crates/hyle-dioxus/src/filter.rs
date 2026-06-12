@@ -266,7 +266,7 @@ fn checkbox_reference_fieldset(
     let blueprint = use_context::<HyleConfig>().blueprint;
 
     rsx! {
-        fieldset {
+        fieldset { class: "hyle-checkbox-filter",
             legend { "{label}" }
             for (id, display) in options {
                 label {
@@ -337,7 +337,7 @@ fn text_input(ff: HyleFilterField, value: String, set: Callback<String>) -> Elem
             .input
             .as_ref()
             .and_then(|i| i.props.get("rows"))
-            .and_then(|v| v.as_u64())
+            .and_then(|v| if let hyle::Value::Int(n) = v { Some(*n as u64) } else { None })
             .unwrap_or(4);
         return rsx! {
             label {
@@ -348,6 +348,21 @@ fn text_input(ff: HyleFilterField, value: String, set: Callback<String>) -> Elem
                     rows: "{rows}",
                     oninput: move |e| set.call(e.value()),
                     "{value}"
+                }
+            }
+        };
+    }
+
+    if kind == "file" {
+        return rsx! {
+            label {
+                "{ff.label}"
+                input {
+                    r#type: "{kind}",
+                    name: "{ff.key}",
+                    aria_label: "{ff.label}",
+                    placeholder: "{ff.label}",
+                    oninput: move |e| set.call(e.value()),
                 }
             }
         };

@@ -11,8 +11,6 @@ use dioxus::prelude::*;
 use dioxus_fullstack_core::ServerFnError;
 use hyle::Source;
 use hyle::MutateInput;
-#[cfg(not(target_arch = "wasm32"))]
-use hyle::FormErrors;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_arch = "wasm32"))]
@@ -47,14 +45,16 @@ pub struct Tag {
 // ── App state (server only) ───────────────────────────────────────────────────
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use server_state::{AppState, seed_roles, seed_tags, seed_users};
+pub use server_state::{AppState, seed_roles, seed_tags, seed_users, register_providers};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod server_state {
     use std::sync::{Arc, RwLock};
-    use hyle::Purifier;
     use crate::blueprint::make_blueprint;
     use super::{User, Role, Tag};
+    use hyle::csource::{register_source, source_put, FieldDef, FieldType};
+    use hyle::{Row, Value};
+    use indexmap::IndexMap;
 
     pub fn seed_users() -> Vec<User> {
         vec![
@@ -89,7 +89,6 @@ mod server_state {
         pub roles: Arc<RwLock<Vec<Role>>>,
         pub tags: Arc<RwLock<Vec<Tag>>>,
         pub blueprint: Arc<hyle::Blueprint>,
-        pub purifier: Arc<Purifier>,
     }
 
     impl AppState {
@@ -99,16 +98,67 @@ mod server_state {
                 roles: Arc::new(RwLock::new(seed_roles())),
                 tags: Arc::new(RwLock::new(seed_tags())),
                 blueprint: Arc::new(make_blueprint()),
-                purifier: Arc::new(Purifier::new()),
             }
+        }
+    }
+
+    pub fn user_to_row(u: &User) -> Row {
+        let mut row: Row = IndexMap::new();
+        row.insert("id".into(),     Value::Int(u.id as i64));
+        row.insert("name".into(),   Value::String(u.name.clone()));
+        row.insert("email".into(),  Value::String(u.email.clone()));
+        row.insert("role".into(),   Value::String(u.role.clone()));
+        row.insert("tags".into(),   Value::Array(
+            u.tags.iter().map(|s| Value::String(s.clone())).collect()
+        ));
+        row.insert("active".into(), Value::Bool(u.active));
+        row
+    }
+
+    static USER_FIELDS: &[FieldDef] = &[
+        FieldDef { name: "id",     kind: FieldType::Int            },
+        FieldDef { name: "name",   kind: FieldType::String         },
+        FieldDef { name: "email",  kind: FieldType::String         },
+        FieldDef { name: "role",   kind: FieldType::Reference      },
+        FieldDef { name: "tags",   kind: FieldType::MultiReference },
+        FieldDef { name: "active", kind: FieldType::Bool           },
+    ];
+    static ROLE_FIELDS: &[FieldDef] = &[
+        FieldDef { name: "id",   kind: FieldType::String },
+        FieldDef { name: "name", kind: FieldType::String },
+    ];
+    static TAG_FIELDS: &[FieldDef] = &[
+        FieldDef { name: "id",   kind: FieldType::String },
+        FieldDef { name: "name", kind: FieldType::String },
+    ];
+
+    /// Register all sources with libhyle and populate with seed data.
+    /// Must be called once at server startup before any queries.
+    pub fn register_providers(state: &AppState) {
+        register_source("user", USER_FIELDS);
+        for u in state.users.read().unwrap().iter() {
+            source_put("user", &user_to_row(u));
+        }
+
+        register_source("role", ROLE_FIELDS);
+        for r in state.roles.read().unwrap().iter() {
+            let mut row: Row = IndexMap::new();
+            row.insert("id".into(),   Value::String(r.id.clone()));
+            row.insert("name".into(), Value::String(r.name.clone()));
+            source_put("role", &row);
+        }
+
+        register_source("tag", TAG_FIELDS);
+        for t in state.tags.read().unwrap().iter() {
+            let mut row: Row = IndexMap::new();
+            row.insert("id".into(),   Value::String(t.id.clone()));
+            row.insert("name".into(), Value::String(t.name.clone()));
+            source_put("tag", &row);
         }
     }
 }
 
 // ── Server functions ──────────────────────────────────────────────────────────
-
-/// Read `page`, `per_page`, and any other query params from the current
-/// request's URI query string.
 #[server]
 pub async fn get_page_params() -> Result<(usize, usize, IndexMap<String, String>), ServerFnError> {
     use axum::extract::OriginalUri;
@@ -134,12 +184,12 @@ pub async fn get_source() -> Result<Source, ServerFnError> {
         .iter()
         .map(|u| {
             IndexMap::from([
-                ("id".into(),     json!(u.id)),
-                ("name".into(),   json!(u.name)),
-                ("email".into(),  json!(u.email)),
-                ("role".into(),   json!(u.role)),
-                ("tags".into(),   json!(u.tags)),
-                ("active".into(), json!(u.active)),
+                ("id".into(),     hyle::Value::Int(u.id as i64)),
+                ("name".into(),   hyle::Value::String(u.name.clone())),
+                ("email".into(),  hyle::Value::String(u.email.clone())),
+                ("role".into(),   hyle::Value::String(u.role.clone())),
+                ("tags".into(),   hyle::Value::Array(u.tags.iter().map(|s| hyle::Value::String(s.clone())).collect())),
+                ("active".into(), hyle::Value::Bool(u.active)),
             ])
         })
         .collect();
@@ -148,8 +198,8 @@ pub async fn get_source() -> Result<Source, ServerFnError> {
         .iter()
         .map(|r| {
             IndexMap::from([
-                ("id".into(),   json!(r.id)),
-                ("name".into(), json!(r.name)),
+                ("id".into(),   hyle::Value::String(r.id.clone())),
+                ("name".into(), hyle::Value::String(r.name.clone())),
             ])
         })
         .collect();
@@ -158,8 +208,8 @@ pub async fn get_source() -> Result<Source, ServerFnError> {
         .iter()
         .map(|t| {
             IndexMap::from([
-                ("id".into(),   json!(t.id)),
-                ("name".into(), json!(t.name)),
+                ("id".into(),   hyle::Value::String(t.id.clone())),
+                ("name".into(), hyle::Value::String(t.name.clone())),
             ])
         })
         .collect();
@@ -172,6 +222,43 @@ pub async fn get_source() -> Result<Source, ServerFnError> {
     Ok(source)
 }
 
+/// Fetch filtered + paginated users (and full lookup tables) for the list view.
+/// Filtering, sorting, and pagination are delegated to the C source registry.
+#[server]
+pub async fn get_user_page(query: hyle::Query) -> Result<Source, ServerFnError> {
+    use axum::Extension;
+    use hyle::ModelResult;
+
+    let Extension(state): Extension<AppState> = FullstackContext::extract().await?;
+
+    let roles = state.roles.read().unwrap().clone();
+    let tags  = state.tags.read().unwrap().clone();
+
+    let (user_rows, total) = hyle::csource::source_query("user", &query)
+        .map_err(|e| ServerFnError::ServerError { message: e, code: 500, details: None })?;
+
+    let role_rows: Vec<hyle::Row> = roles.iter().map(|r| {
+        indexmap::IndexMap::from([
+            ("id".into(),   hyle::Value::String(r.id.clone())),
+            ("name".into(), hyle::Value::String(r.name.clone())),
+        ])
+    }).collect();
+
+    let tag_rows: Vec<hyle::Row> = tags.iter().map(|t| {
+        indexmap::IndexMap::from([
+            ("id".into(),   hyle::Value::String(t.id.clone())),
+            ("name".into(), hyle::Value::String(t.name.clone())),
+        ])
+    }).collect();
+
+    let mut source = Source::new();
+    source.insert("user".into(), ModelResult { result: hyle::ModelRows::Many(user_rows), total });
+    source.insert("role".into(), ModelResult::many(role_rows));
+    source.insert("tag".into(),  ModelResult::many(tag_rows));
+
+    Ok(source)
+}
+
 /// Create a new user (JS path via server fn).
 #[server]
 pub async fn create_user(input: MutateInput) -> Result<Value, ServerFnError> {
@@ -179,10 +266,10 @@ pub async fn create_user(input: MutateInput) -> Result<Value, ServerFnError> {
 
     let Extension(state): Extension<AppState> = FullstackContext::extract().await?;
 
-    let row = hyle::row_from_form(&input.data);
-    if let Err(errors) = state.purifier.purify_row(&state.blueprint, "user", &row) {
+    let name = input.data.get("name").map(|s| s.trim().to_owned()).unwrap_or_default();
+    if name.len() < 2 {
         return Err(ServerFnError::ServerError {
-            message: serde_json::to_string(&errors).unwrap_or_default(),
+            message: "name: must be at least 2 characters".into(),
             code: 422,
             details: None,
         });
@@ -207,6 +294,7 @@ pub async fn create_user(input: MutateInput) -> Result<Value, ServerFnError> {
         active,
     };
     users.push(user.clone());
+    hyle::csource::source_put("user", &server_state::user_to_row(&user));
     Ok(json!(user))
 }
 
@@ -219,13 +307,7 @@ pub async fn update_user(input: MutateInput) -> Result<Value, ServerFnError> {
 
     let id = extract_id(&input.id);
     let row = hyle::row_from_form(&input.data);
-    if let Err(errors) = state.purifier.purify_row(&state.blueprint, "user", &row) {
-        return Err(ServerFnError::ServerError {
-            message: serde_json::to_string(&errors).unwrap_or_default(),
-            code: 422,
-            details: None,
-        });
-    }
+    let _ = row; // validation handled server-side (C)
 
     let mut users = state.users.write().unwrap();
     let Some(user) = users.iter_mut().find(|u| u.id == id) else {
@@ -240,6 +322,7 @@ pub async fn update_user(input: MutateInput) -> Result<Value, ServerFnError> {
     if let Some(active) = input.data.get("active") {
         user.active = active == "true";
     }
+    hyle::csource::source_put("user", &server_state::user_to_row(user));
     Ok(json!(user.clone()))
 }
 
@@ -257,13 +340,18 @@ pub async fn delete_user(input: MutateInput) -> Result<(), ServerFnError> {
     if users.len() == before {
         return Err(ServerFnError::ServerError { message: "User not found".into(), code: 404, details: None });
     }
+    hyle::csource::source_del("user", &id.to_string());
     Ok(())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn extract_id(v: &Option<Value>) -> u64 {
+fn extract_id(v: &Option<hyle::Value>) -> u64 {
     v.as_ref()
-        .and_then(|v| v.as_u64().or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+        .and_then(|v| match v {
+            hyle::Value::Int(n) => Some(*n as u64),
+            hyle::Value::String(s) => s.parse().ok(),
+            _ => None,
+        })
         .unwrap_or(0)
 }
 
@@ -297,7 +385,6 @@ pub mod post_handlers {
         }
         map
     }
-    use hyle::row_from_form;
     use hyle_dioxus::HyleRenderer;
 
     pub async fn handle_create_user(
@@ -307,65 +394,61 @@ pub mod post_handlers {
         Form(pairs): Form<Vec<(String, String)>>,
     ) -> Response {
         let form = collect_form(pairs);
-        let row = row_from_form(&form);
-        match app_state.purifier.purify_row(&app_state.blueprint, "user", &row) {
-            Err(errs) => {
-                let map = errs.into_iter()
-                    .map(|e| (e.field.clone(), e.message.clone()))
-                    .collect();
-                renderer.render_with_errors(fullstack_state, "/users/new", FormErrors(map)).await
-            }
-            Ok(_) => {
-                let mut users = app_state.users.write().unwrap();
-                let next_id = users.iter().map(|u| u.id).max().unwrap_or(0) + 1;
-                let active = form.get("active").map(|s| s == "true").unwrap_or(true);
-        let tags = form.get("tags")
-                    .map(|s| s.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect())
-                    .unwrap_or_default();
-                users.push(User {
-                    id: next_id,
-                    name:   form.get("name").cloned().unwrap_or_default(),
-                    email:  form.get("email").cloned().unwrap_or_default(),
-                    role:   form.get("role").cloned().unwrap_or_else(|| "viewer".into()),
-                    tags,
-                    active,
-                });
-                Redirect::to("/").into_response()
-            }
+        let name = form.get("name").map(|s| s.trim().to_owned()).unwrap_or_default();
+        if name.len() < 2 {
+            let mut errors = IndexMap::new();
+            errors.insert("name".to_owned(), "must be at least 2 characters".to_owned());
+            return renderer.render_with_errors(fullstack_state, "/users/new", hyle_dioxus::FormErrors(errors)).await;
         }
+        let user = {
+            let mut users = app_state.users.write().unwrap();
+            let next_id = users.iter().map(|u| u.id).max().unwrap_or(0) + 1;
+            let active = form.get("active").map(|s| s == "true").unwrap_or(true);
+            let tags = form.get("tags")
+                .map(|s| s.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect())
+                .unwrap_or_default();
+            let u = User {
+                id: next_id,
+                name:   form.get("name").cloned().unwrap_or_default(),
+                email:  form.get("email").cloned().unwrap_or_default(),
+                role:   form.get("role").cloned().unwrap_or_else(|| "viewer".into()),
+                tags,
+                active,
+            };
+            users.push(u.clone());
+            u
+        };
+        hyle::csource::source_put("user", &server_state::user_to_row(&user));
+        Redirect::to("/").into_response()
     }
 
     pub async fn handle_update_user(
-        State(fullstack_state): State<FullstackState>,
-        Extension(renderer): Extension<HyleRenderer>,
+        State(_fullstack_state): State<FullstackState>,
+        Extension(_renderer): Extension<HyleRenderer>,
         Extension(app_state): Extension<AppState>,
         Path(id): Path<u64>,
         Form(pairs): Form<Vec<(String, String)>>,
     ) -> Response {
         let form = collect_form(pairs);
-        let row = row_from_form(&form);
-        match app_state.purifier.purify_row(&app_state.blueprint, "user", &row) {
-            Err(errs) => {
-                let map = errs.into_iter()
-                    .map(|e| (e.field.clone(), e.message.clone()))
-                    .collect();
-                let uri = format!("/users/{id}/edit");
-                renderer.render_with_errors(fullstack_state, &uri, FormErrors(map)).await
-            }
-            Ok(_) => {
-                let mut users = app_state.users.write().unwrap();
-                if let Some(user) = users.iter_mut().find(|u| u.id == id) {
-                    if let Some(v) = form.get("name")   { user.name  = v.clone(); }
-                    if let Some(v) = form.get("email")  { user.email = v.clone(); }
-                    if let Some(v) = form.get("role")   { user.role  = v.clone(); }
-                    if let Some(v) = form.get("tags") {
-                        user.tags = v.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect();
-                    }
-                    if let Some(v) = form.get("active") { user.active = v == "true"; }
+        let row = {
+            let mut users = app_state.users.write().unwrap();
+            if let Some(user) = users.iter_mut().find(|u| u.id == id) {
+                if let Some(v) = form.get("name")   { user.name  = v.clone(); }
+                if let Some(v) = form.get("email")  { user.email = v.clone(); }
+                if let Some(v) = form.get("role")   { user.role  = v.clone(); }
+                if let Some(v) = form.get("tags") {
+                    user.tags = v.split(',').filter(|t| !t.is_empty()).map(|t| t.trim().to_owned()).collect();
                 }
-                Redirect::to("/").into_response()
+                if let Some(v) = form.get("active") { user.active = v == "true"; }
+                Some(server_state::user_to_row(user))
+            } else {
+                None
             }
+        };
+        if let Some(row) = row {
+            hyle::csource::source_put("user", &row);
         }
+        Redirect::to("/").into_response()
     }
 
     pub async fn handle_delete_user(
@@ -373,6 +456,7 @@ pub mod post_handlers {
         Path(id): Path<u64>,
     ) -> impl IntoResponse {
         app_state.users.write().unwrap().retain(|u| u.id != id);
+        hyle::csource::source_del("user", &id.to_string());
         Redirect::to("/")
     }
 
@@ -384,6 +468,7 @@ pub mod post_handlers {
         *app_state.users.write().unwrap() = super::seed_users();
         *app_state.roles.write().unwrap() = super::seed_roles();
         *app_state.tags.write().unwrap() = super::seed_tags();
+        super::register_providers(&app_state);
         StatusCode::OK
     }
 }

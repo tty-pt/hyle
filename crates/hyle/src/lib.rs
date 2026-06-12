@@ -1,4 +1,4 @@
-//! Framework-agnostic forma and query planning primitives.
+//! Framework-agnostic schema and query planning primitives.
 //!
 //! `hyle` deliberately has no React, DOM, async, or transport concepts.
 //! It describes models and fields, derives backend query manifests, and resolves
@@ -9,36 +9,39 @@ mod blueprint;
 mod error;
 mod field;
 mod purify;
-mod query;
-mod raw;
+pub mod query;
+pub mod raw;
+pub mod de;
+pub mod ser;
 mod forma;
-mod view;
-pub(crate) mod adapter;
-#[cfg(feature = "wasm")]
-#[doc(hidden)]
-pub mod wasm;
+pub mod view;
+pub mod source;
 
-/// The default component stylesheet for hyle UI components.
-///
-/// Dioxus consumers can link this into their app:
-/// ```rust,ignore
-/// document::Link { rel: "stylesheet", href: hyle::CSS }
-/// ```
-pub static CSS: manganis::Asset = manganis::asset!("assets/hyle.css");
-
-pub use blueprint::{Blueprint, Model, ResolvedView};
+pub use blueprint::{Blueprint, Model};
+pub use source::{
+    set_provider, get_provider, load_source, find_item,
+    SourceProvider,
+    load_typed_item, load_typed_rows,
+    FieldStorageType, SourceDef, SourceFieldDef,
+    deser_row,
+};
+#[cfg(all(feature = "csource", not(target_arch = "wasm32")))]
+pub use source::csource;
+#[cfg(feature = "json")]
+pub use source::{
+    extract_field,
+    source_to_json, load_source_json, load_item_json,
+};
 pub use error::{Error, HyleResult};
 pub use field::{
     make_field, Field, FieldOptions, FieldType, InputHint, Primitive, Reference, ShapeField, SortType,
 };
-pub use purify::{purify_row_sync, PurifyError, Purifier, SyncRule};
+pub use purify::PurifyError;
 pub use query::{parse_query_params, Manifest, MutateInput, Query, Sort};
-pub use raw::{is_single, row_from_form, row_from_value, ModelResult, Outcome, Row, Source, Value};
+pub use raw::{is_single, parse_index_items, row_from_form, row_from_value, ModelResult, Outcome, Row, RowItem, Source, Value, rows_from_outcome, ModelRows};
 pub use forma::{Forma, FormaContext, FormaField, FormaFieldType, forma_to_query};
-pub use view::{apply_view, Column, display_value, display_value_from_outcome, filter_rows};
-pub use adapter::{
-    apply_change, build_effective_query, build_filter_fields, compute_data, compute_forma_result,
-    compute_manifest, run_purify, AdapterFiltersOptions, AdapterFormOptions, FieldChange,
-    FieldChangeFn, FieldChangeMap, FormErrors, HyleDataField, HyleDataState, HyleFilterField,
-    HyleManifestState, UseFormaOptions,
-};
+pub use view::{Column, display_value, display_value_from_outcome};
+
+#[cfg(feature = "wasm")]
+#[doc(hidden)]
+pub mod wasm;

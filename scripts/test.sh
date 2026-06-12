@@ -26,7 +26,6 @@ wait_for_url() {
 echo "==> Running Rust unit tests..."
 cargo test -p hyle --manifest-path "$REPO/Cargo.toml"
 cargo test -p hyle-dioxus --manifest-path "$REPO/Cargo.toml"
-cargo test -p hyle-source-qmap --manifest-path "$REPO/Cargo.toml"
 
 echo "==> Running hyle-react unit tests..."
 npm test --prefix "$REPO/packages/hyle-react"

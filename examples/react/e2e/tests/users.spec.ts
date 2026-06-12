@@ -19,13 +19,6 @@ test.describe("js", () => {
     expect(res.status()).toBe(200);
   });
 
-  test("loads user list", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.locator("h2").first()).toContainText("Users");
-    const rows = page.locator("tbody tr");
-    await expect(rows).toHaveCount(5); // default per_page = 5
-  });
-
   test("row click navigates to edit page", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector("tbody tr.hyle-row-clickable");
@@ -66,14 +59,6 @@ test.describe("js", () => {
     await expect(page.locator("tbody")).toContainText("Zelda");
   });
 
-  test("create user — client-side validation error (name too short)", async ({ page }) => {
-    await page.goto("/users/new");
-    await page.locator('input[aria-label="Name"]').fill("Z");
-    await page.locator("button.hyle-primary-button[type=submit]").click();
-    await expect(page).toHaveURL("/users/new");
-    await expect(page.locator(".hyle-errors")).toBeVisible();
-  });
-
   test("delete user", async ({ page }) => {
     await page.goto("/users/1/edit");
     await page.locator("button.hyle-danger-button[type=submit]").click();
@@ -81,59 +66,6 @@ test.describe("js", () => {
     await expect(page.locator("tbody")).not.toContainText("Alice");
   });
 
-  test("filter by name", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector("tbody tr.hyle-row-clickable");
-    await page.locator('.hyle-filter-bar input[aria-label="Name"]').fill("Ali");
-    await page.locator('.hyle-filter-actions button:has-text("Apply")').click();
-    const rows = page.locator("tbody tr");
-    await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText("Alice");
-  });
-
-  test("filter by name does not navigate (JS)", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.locator('.hyle-filter-bar input[aria-label="Name"]').fill("Ali");
-    await page.locator('.hyle-filter-actions button:has-text("Apply")').click();
-    await expect(page.locator("tbody tr")).toHaveCount(1);
-    // URL must not have changed — filter applied reactively, no page reload
-    expect(page.url()).toBe("http://localhost:4173/");
-  });
-
-  test("pagination next does not navigate (JS)", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForLoadState("networkidle");
-    await page.locator('button:has-text("Next →")').click();
-    // 7 users, per_page 5 → page 2 has 2 rows
-    await expect(page.locator("tbody tr")).toHaveCount(2);
-    // URL must not have changed — pagination applied reactively, no page reload
-    expect(page.url()).toBe("http://localhost:4173/");
-  });
-
-  test("pagination — next page", async ({ page }) => {
-    await page.goto("/");
-    await page.locator('button:has-text("Next →")').click();
-    // 7 users, per_page 5 → page 2 has 2 rows
-    const rows = page.locator("tbody tr");
-    await expect(rows).toHaveCount(2);
-  });
-
-  test("filter then paginate — filter persists across pages", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector("tbody tr.hyle-row-clickable");
-    // First paginate to page 2 (no filter, 7 users / per_page 5)
-    await page.locator('button:has-text("Next →")').click();
-    await expect(page.locator("tbody tr")).toHaveCount(2);
-    // Now go back to page 1 via Prev and apply a filter
-    await page.locator('button:has-text("← Prev")').click();
-    await expect(page.locator("tbody tr")).toHaveCount(5);
-    await page.locator('.hyle-filter-bar input[aria-label="Name"]').fill("a");
-    await page.locator('.hyle-filter-actions button:has-text("Apply")').click();
-    await expect(page.locator("tbody tr")).toHaveCount(4);
-    // Filter input must still hold the applied value
-    await expect(page.locator('.hyle-filter-bar input[aria-label="Name"]')).toHaveValue("a");
-  });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
+use crate::Value;
 
 // ── Mutation input ─────────────────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ pub struct MutateInput {
     /// The model name — e.g. `"user"`.
     pub model: String,
     /// The row id when editing or deleting an existing record; `None` for creates.
-    pub id: Option<JsonValue>,
+    pub id: Option<Value>,
     /// The form field values to submit.
     pub data: IndexMap<String, String>,
 }
@@ -108,7 +108,7 @@ pub struct Query {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub select: Vec<String>,
     #[serde(rename = "where", default, skip_serializing_if = "IndexMap::is_empty")]
-    pub where_: IndexMap<String, JsonValue>,
+    pub where_: IndexMap<String, Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub filters: Vec<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -147,7 +147,7 @@ impl Query {
         self
     }
 
-    pub fn where_eq(mut self, field: impl Into<String>, value: JsonValue) -> Self {
+    pub fn where_eq(mut self, field: impl Into<String>, value: Value) -> Self {
         self.where_.insert(field.into(), value);
         self
     }
@@ -172,10 +172,10 @@ impl Query {
 pub struct Manifest {
     pub base: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<JsonValue>,
+    pub id: Option<Value>,
     pub fields: Vec<String>,
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
-    pub filter: IndexMap<String, JsonValue>,
+    pub filter: IndexMap<String, Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub lookups: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -278,12 +278,11 @@ mod tests {
 
     #[test]
     fn where_serialises_as_where_not_where_underscore() {
-        use serde_json::json;
-        let q = Query::new("user").where_eq("name", json!("Alice"));
+        let q = Query::new("user").where_eq("name", Value::String("Alice".to_owned()));
         let serialised = serde_json::to_value(&q).unwrap();
         assert!(serialised.get("where").is_some(), "expected 'where' key");
         assert!(serialised.get("where_").is_none(), "unexpected 'where_' key");
         let round_trip: Query = serde_json::from_value(serialised).unwrap();
-        assert_eq!(round_trip.where_.get("name"), Some(&json!("Alice")));
+        assert_eq!(round_trip.where_.get("name"), Some(&Value::String("Alice".to_owned())));
     }
 }

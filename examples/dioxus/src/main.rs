@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
 use dioxus::prelude::*;
-use hyle::Query;
+use hyle::{MutateInput, Query, Value};
 use hyle_dioxus_example::blueprint::make_blueprint;
-use hyle::{FieldChange, FormErrors, HyleDataState, MutateInput, Value};
-use hyle_dioxus::{
+use hyle_dioxus::{FieldChange, FormErrors, HyleAdapter, HyleDataState,
     make_fullstack_adapter, use_adapter_config, use_context_provider, use_filters, use_form,
-    use_list_with_filters, use_mutation, BoundMutateInput, HyleConfig, HyleFormState,
-    InvalidationSignal, UseFiltersOptions, UseFormOptions,
+    use_fullstack_source, use_list_with_filters, use_mutation, BoundMutateInput, HyleConfig,
+    HyleFormState, InvalidationSignal, UseFiltersOptions, UseFormOptions,
 };
 use hyle_dioxus_native::{HyleFormFields, HyleTableFilterBar, HyleTableFilters, HyleTablePanel};
-use serde_json::json;
 
-use hyle_dioxus_example::server::{create_user, delete_user, get_page_params, get_source, update_user};
+
+use hyle_dioxus_example::server::{create_user, delete_user, get_page_params, get_source, get_user_page, update_user};
+use serde_json::json;
 fn main() {
     #[cfg(target_arch = "wasm32")]
     console_error_panic_hook::set_once();
@@ -22,6 +22,7 @@ fn main() {
         use axum::{Extension, Router, routing::{get, post}};
         use dioxus::server::{serve, DioxusRouterExt, FullstackState, ServeConfig, render_handler};
         use hyle_dioxus_example::server::AppState;
+        use hyle_dioxus_example::server::register_providers;
         use hyle_dioxus_example::server::post_handlers::{
             handle_create_user, handle_delete_user, handle_reset, handle_update_user,
         };
@@ -29,6 +30,7 @@ fn main() {
 
         serve(|| async {
             let state = AppState::new();
+            register_providers(&state);
             let fullstack_state = FullstackState::new(ServeConfig::new(), app);
             Ok(Router::<FullstackState>::new()
                 .route("/users/new",         get(render_handler).post(handle_create_user))
@@ -85,7 +87,7 @@ fn app() -> Element {
     ));
 
     rsx! {
-        dioxus::document::Stylesheet { href: hyle::CSS }
+        dioxus::document::Stylesheet { href: hyle_dioxus::CSS }
         style { {include_str!("style.css")} }
         Router::<Route> {}
     }
@@ -103,8 +105,23 @@ fn UserList() -> Element {
 
     let filters = use_filters(
         base_query(init_page, init_per_page),
-        UseFiltersOptions { initial_committed: init_filters, ..Default::default() },
+        UseFiltersOptions { initial_committed: init_filters.clone(), ..Default::default() },
     );
+
+    let init_query = {
+        let mut q = base_query(init_page, init_per_page);
+        for (k, v) in &init_filters {
+            q.where_.insert(k.clone(), Value::String(v.clone()));
+        }
+        q
+    };
+    let source = use_fullstack_source(move || {
+        let q = init_query.clone();
+        async move { get_user_page(q).await.map_err(Into::into) }
+    });
+    let root_adapter = use_context::<HyleAdapter>();
+    use_context_provider(|| HyleAdapter { source, ..root_adapter });
+
     let list = use_list_with_filters(filters);
 
     rsx! {
@@ -125,7 +142,11 @@ fn UserList() -> Element {
                             filters,
                             row_href: Callback::new(move |row: hyle_dioxus::Row| {
                                 let id = row.get("id")
-                                    .and_then(|v| v.as_u64())
+                                    .and_then(|v| match v {
+                                        Value::Int(n) => Some(*n as u64),
+                                        Value::String(s) => s.parse().ok(),
+                                        _ => None,
+                                    })
                                     .unwrap_or(0);
                                 format!("/users/{id}/edit")
                             }),
@@ -206,15 +227,6 @@ fn UserFormPanel(
 
                     HyleFormFields { filters }
 
-                    if let Some(ref errs) = *filters.purify_errors.read() {
-                        if !errs.is_empty() {
-                            ul { class: "hyle-errors",
-                                for err in errs {
-                                    li { key: "{err.field}", "{err.field}: {err.message}" }
-                                }
-                            }
-                        }
-                    }
                     if let Some(ref msg) = *form.mutation.error.read() {
                         p { class: "hyle-errors", "{msg}" }
                     }
@@ -266,7 +278,7 @@ fn UserEdit(id: u64) -> Element {
     let errors = try_use_context::<FormErrors>().unwrap_or_default();
 
     let mut query = base_query(1, 1);
-    query.where_.insert("id".to_owned(), json!(id));
+    query.where_.insert("id".to_owned(), Value::Int(id as i64));
     query.method = Some("one".to_owned());
 
     let form = use_form(query, UseFormOptions::default()
@@ -295,7 +307,7 @@ fn UserEdit(id: u64) -> Element {
                     action: "{delete_uri}",
                     onsubmit: move |e| {
                         e.prevent_default();
-                        mut_.delete.mutate.call(BoundMutateInput { id: Some(json!(id)), ..Default::default() });
+                        mut_.delete.mutate.call(BoundMutateInput { id: Some(Value::Int(id as i64)), ..Default::default() });
                     },
                     div { class: "hyle-edit-actions",
                         button {
@@ -314,7 +326,7 @@ fn UserEdit(id: u64) -> Element {
 // ── DebugBlock ────────────────────────────────────────────────────────────────
 
 #[component]
-fn DebugBlock(title: String, value: Value) -> Element {
+fn DebugBlock(title: String, value: serde_json::Value) -> Element {
     rsx! {
         section { class: "hyle-debug-block",
             h2 { "{title}" }

@@ -27,15 +27,12 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use indexmap::IndexMap;
-use serde_json::Value as JsonValue;
-
-use crate::{
+use hyle::{
     Blueprint, Column, Field, FieldType, Forma, FormaContext, Manifest, Outcome,
     PurifyError, Query, Row, Source, Value,
-    display_value, forma_to_query, purify_row_sync,
+    display_value, forma_to_query, rows_from_outcome, is_single,
 };
-use crate::view::derive_columns;
-use crate::raw::rows_from_outcome;
+use hyle::view::derive_columns;
 
 // ── Field change ──────────────────────────────────────────────────────────────
 
@@ -278,19 +275,26 @@ pub fn compute_data(
     manifest: Manifest,
     source: Source,
 ) -> HyleDataState {
-    match blueprint.resolve_and_view(&manifest, &source) {
+    match blueprint.resolve(&manifest, &source) {
         Err(e) => HyleDataState::Error {
             error: e.to_string(),
             manifest: Some(manifest),
         },
-        Ok(view) => {
-            let row = if view.is_single { view.rows.first().cloned() } else { None };
-            let fields = build_fields(&blueprint, &manifest, &view.outcome, &view.columns, row.as_ref());
+        Ok(outcome) => {
+            let rows = outcome.rows.rows();
+            // server (C libhyle) handles filter/sort/paginate — use rows as-is
+            let single = is_single(&manifest, &outcome);
+            let columns = match derive_columns(&blueprint, &manifest) {
+                Ok(c) => c,
+                Err(e) => return HyleDataState::Error { error: e.to_string(), manifest: Some(manifest) },
+            };
+            let row = if single { rows.first().cloned() } else { None };
+            let fields = build_fields(&blueprint, &manifest, &outcome, &columns, row.as_ref());
             HyleDataState::Ready {
                 manifest,
-                outcome: view.outcome,
-                rows: view.rows,
-                columns: view.columns,
+                outcome,
+                rows,
+                columns,
                 row,
                 fields,
             }
@@ -352,7 +356,7 @@ pub fn build_effective_query(
     let mut where_ = base.where_.clone();
     for (k, v) in committed {
         if !v.is_empty() {
-            where_.insert(k.clone(), JsonValue::String(v.clone()));
+            where_.insert(k.clone(), Value::String(v.clone()));
         }
     }
 
@@ -369,21 +373,14 @@ pub fn build_effective_query(
     }
 }
 
-/// Run `purify_row_sync` and return errors as a `FormErrors` map, or `None` if valid.
-///
-/// *For framework adapter authors.* Thin adapter over [`purify_row_sync`] that
-/// converts the error list into the `FormErrors` map used by form hooks.
+/// Returns `None` — validation is handled server-side by C libhyle.
 #[doc(hidden)]
 pub fn run_purify(
-    blueprint: &Blueprint,
-    model_name: &str,
-    form_data: &IndexMap<String, String>,
+    _blueprint: &Blueprint,
+    _model_name: &str,
+    _form_data: &IndexMap<String, String>,
 ) -> Option<Vec<PurifyError>> {
-    let row: Row = form_data
-        .iter()
-        .map(|(k, v)| (k.clone(), JsonValue::String(v.clone())))
-        .collect();
-    purify_row_sync(blueprint, model_name, &row).err()
+    None
 }
 
 /// Build filter field metadata from a manifest and outcome.
@@ -424,7 +421,7 @@ pub fn build_filter_fields(
                                 .map(|(id, row)| {
                                     let label = row
                                         .get(&reference.display_field)
-                                        .and_then(|v| v.as_str())
+                                        .and_then(|v| if let Value::String(s) = v { Some(s.as_str()) } else { None })
                                         .unwrap_or(id.as_str())
                                         .to_owned();
                                     (id.clone(), label)
@@ -450,7 +447,7 @@ pub fn build_filter_fields(
                                     .map(|(id, row)| {
                                         let label = row
                                             .get(&reference.display_field)
-                                            .and_then(|v| v.as_str())
+                                            .and_then(|v| if let Value::String(s) = v { Some(s.as_str()) } else { None })
                                             .unwrap_or(id.as_str())
                                             .to_owned();
                                         (id.clone(), label)
@@ -540,7 +537,7 @@ pub fn apply_change<R>(
 pub fn compute_forma_result(
     data: &HyleDataState,
     table_name: &str,
-    id: Option<JsonValue>,
+    id: Option<Value>,
     context: &FormaContext,
 ) -> (Option<Query>, Option<Forma>) {
     let row = match data {
@@ -548,9 +545,7 @@ pub fn compute_forma_result(
         _ => return (None, None),
     };
 
-    let forma: Forma = match serde_json::from_value(JsonValue::Object(
-        row.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-    )) {
+    let forma: Forma = match hyle::deser_row(row) {
         Ok(f) => f,
         Err(_) => return (None, None),
     };
@@ -569,16 +564,14 @@ pub fn compute_forma_result(
 mod tests {
     use super::*;
     use crate::{Field, Model};
-    use crate::raw::ModelRows;
+    use hyle::ModelRows;
     use indexmap::IndexMap;
-    use serde_json::json;
-
     fn user_blueprint() -> Blueprint {
         Blueprint::new()
             .model(
                 "user",
                 Model::new()
-                    .field("name", Field::string("Name").with_metadata("required", json!(true)))
+                    .field("name", Field::string("Name").with_metadata("required", Value::Bool(true)))
                     .field("email", Field::string("Email"))
                     .field("active", Field::boolean("Active")),
             )
@@ -590,16 +583,16 @@ mod tests {
 
     fn user_source(rows: Vec<Row>) -> Source {
         let mut src = Source::new();
-        src.insert("user".to_owned(), crate::ModelResult::many(rows));
+        src.insert("user".to_owned(), hyle::ModelResult::many(rows));
         src
     }
 
     fn alice() -> Row {
         indexmap::indexmap! {
-            "id".to_owned()     => json!(1),
-            "name".to_owned()   => json!("Alice"),
-            "email".to_owned()  => json!("alice@example.test"),
-            "active".to_owned() => json!(true),
+            "id".to_owned()     => Value::Int(1),
+            "name".to_owned()   => Value::String("Alice".to_owned()),
+            "email".to_owned()  => Value::String("alice@example.test".to_owned()),
+            "active".to_owned() => Value::Bool(true),
         }
     }
 
@@ -683,7 +676,7 @@ mod tests {
         let mut committed = IndexMap::new();
         committed.insert("name".to_owned(), "Bob".to_owned());
         let q = build_effective_query(&user_query(), &committed, 1, 20, None, true);
-        assert_eq!(q.where_.get("name"), Some(&json!("Bob")));
+        assert_eq!(q.where_.get("name"), Some(&Value::String("Bob".to_owned())));
     }
 
     #[test]
@@ -702,24 +695,6 @@ mod tests {
         let sort = q.sort.unwrap();
         assert_eq!(sort.field, "name");
         assert!(!sort.ascending);
-    }
-
-    // ── run_purify ────────────────────────────────────────────────────────────
-
-    #[test]
-    fn purify_passes_valid_row() {
-        let bp = user_blueprint();
-        let mut form = IndexMap::new();
-        form.insert("name".to_owned(), "Alice".to_owned());
-        assert!(run_purify(&bp, "user", &form).is_none());
-    }
-
-    #[test]
-    fn purify_catches_required_violation() {
-        let bp = user_blueprint();
-        let errors = run_purify(&bp, "user", &IndexMap::new());
-        assert!(errors.is_some());
-        assert!(errors.unwrap().iter().any(|e| e.field == "name" && e.rule == "required"));
     }
 
     // ── apply_change ──────────────────────────────────────────────────────────

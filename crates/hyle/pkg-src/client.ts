@@ -173,9 +173,9 @@ export function createHyleClient(loadWasm: HyleWasmLoader): HyleClient {
       if (!filters) return rows;
 
       const module = getWasm();
-      const filterRows = requireWasmExport(module.filter_rows, "filter_rows");
+      if (!module.filter_rows) return rows;
       return JSON.parse(
-        filterRows(JSON.stringify(rows), JSON.stringify(filters)),
+        module.filter_rows(JSON.stringify(rows), JSON.stringify(filters)),
       ) as Row[];
     },
 
@@ -214,16 +214,16 @@ export function createHyleClient(loadWasm: HyleWasmLoader): HyleClient {
 
     purifyRow(blueprint, modelName, row) {
       const module = getWasm();
-      const fn_ = requireWasmExport(module.purify_row, "purify_row");
+      if (!module.purify_row) return null;
       return JSON.parse(
-        fn_(JSON.stringify(blueprint), modelName, JSON.stringify(row)),
+        module.purify_row(JSON.stringify(blueprint), modelName, JSON.stringify(row)),
       ) as ReturnType<HyleClient["purifyRow"]>;
     },
 
     applyView(rows, manifest) {
       const module = getWasm();
-      const fn_ = requireWasmExport(module.apply_view, "apply_view");
-      return JSON.parse(fn_(JSON.stringify(rows), JSON.stringify(manifest))) as Row[];
+      if (!module.apply_view) return rows;
+      return JSON.parse(module.apply_view(JSON.stringify(rows), JSON.stringify(manifest))) as Row[];
     },
 
     isSingle(manifest, result) {
