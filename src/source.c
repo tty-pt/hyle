@@ -20,6 +20,14 @@ typedef struct {
 	uint32_t           record_id;
 	int                row_owned;  /* 1 = libhyle created row_hd */
 	void              *user;
+	/* ordered source fields (zero for normal sources) */
+	int                ordered;
+	char               partition_field[64];
+	hyle_persist_load_fn load_fn;
+	hyle_persist_save_fn save_fn;
+	void              *persist_user;
+	unsigned           order_hd;   /* qmap: pval → count (str) */
+	unsigned           loaded_hd;  /* qmap: pval → "" (loaded flag) */
 } registry_entry_t;
 
 static registry_entry_t registry[HYLE_SOURCE_MAX];
@@ -375,6 +383,28 @@ const char *hyle_source_id_at(size_t i)
 	return i < registry_count ? registry[i].source_id : NULL;
 }
 
+size_t hyle_source_get_field_count(const char *source_id)
+{
+	registry_entry_t *e = find_entry(source_id);
+	return e ? e->field_count : 0;
+}
+
+const char *hyle_source_get_field_name(const char *source_id, size_t idx)
+{
+	registry_entry_t *e = find_entry(source_id);
+	if (!e || idx >= e->field_count)
+		return NULL;
+	return e->fields[idx].name;
+}
+
+hyle_field_type_t hyle_source_get_field_type(const char *source_id, size_t idx)
+{
+	registry_entry_t *e = find_entry(source_id);
+	if (!e || idx >= e->field_count)
+		return 0;
+	return e->fields[idx].type;
+}
+
 /* ---- hyle_source_rows_free ---- */
 
 void hyle_source_rows_free(hyle_source_row_t *rows, size_t count)
@@ -502,4 +532,378 @@ int hyle_row_set_to_rows(const hyle_row_set_t *rs,
 
 	*rows_out = rows;
 	return 0;
+}
+
+/* ===================================================================
+ * Ordered source: positional arrays per partition, with pluggable
+ * persistence callbacks.
+ *
+ * Keys are "{partition_val}__{NNNN}" stored in row_hd / fields_hd.
+ * order_hd:  pval → count_as_string
+ * loaded_hd: pval → ""  (marks whether partition has been loaded)
+ * =================================================================== */
+
+/* ---- helpers ----------------------------------------------------------- */
+
+static void ordered_build_key(char *buf, size_t sz,
+	const char *pval, int pos)
+{
+	snprintf(buf, sz, "%s__%04d", pval, pos);
+}
+
+/* Count items prefixed with "pval__" by iterating row_hd. */
+static int ordered_partition_count(unsigned row_hd, const char *pval)
+{
+	size_t plen = strlen(pval);
+	int count = 0;
+	uint32_t cur = qmap_iter(row_hd, NULL, 0);
+	const void *k, *v;
+	while (qmap_next(&k, &v, cur)) {
+		const char *key = (const char *)k;
+		if (strncmp(key, pval, plen) == 0 &&
+		    key[plen] == '_' && key[plen + 1] == '_')
+			count++;
+	}
+	qmap_fin(cur);
+	return count;
+}
+
+/* Move field values from position `from` to `to` within the partition. */
+static void ordered_move_key(registry_entry_t *e,
+	const char *pval, int from, int to)
+{
+	char old_key[128], new_key[128];
+	ordered_build_key(old_key, sizeof(old_key), pval, from);
+	ordered_build_key(new_key, sizeof(new_key), pval, to);
+
+	if (e->record_id) {
+		/* Record-aware: copy entire struct to avoid qmap_put resize
+		 * invalidating the pointer returned by qmap_get. */
+		const void *data = qmap_get(e->fields_hd, old_key);
+		if (data) {
+			size_t sz = qmap_type_len(qmap_get_vtype(e->fields_hd));
+			void *buf = malloc(sz);
+			if (buf) {
+				memcpy(buf, data, sz);
+				qmap_put(e->fields_hd, new_key, buf);
+				free(buf);
+			}
+		}
+	} else {
+		/* Plain map: iterate and rename field entries. */
+		size_t olen = strlen(old_key);
+		uint32_t cur = qmap_iter(e->fields_hd, NULL, 0);
+		const void *k, *v;
+		while (qmap_next(&k, &v, cur)) {
+			const char *fkey = (const char *)k;
+			if (strncmp(fkey, old_key, olen) != 0)
+				continue;
+			if (fkey[olen] != ':')
+				continue;
+			const char *fname = fkey + olen + 1;
+			char nk[256];
+			snprintf(nk, sizeof(nk), "%s:%s", new_key, fname);
+			qmap_put(e->fields_hd, nk, (const char *)v);
+		}
+		qmap_fin(cur);
+	}
+	qmap_put(e->row_hd, new_key, "");
+	qmap_del(e->row_hd, old_key);
+	qmap_del(e->fields_hd, old_key);
+}
+
+static int ordered_ensure_loaded(const char *source_id, const char *pval)
+{
+	registry_entry_t *e;
+	int count;
+	char c[16];
+
+	e = find_entry(source_id);
+	if (!e || !e->ordered)
+		return -1;
+	if (!pval || !pval[0])
+		return -1;
+	if (qmap_get(e->loaded_hd, pval))
+		return 0;
+	qmap_put(e->loaded_hd, pval, "");
+	if (e->load_fn)
+		e->load_fn(source_id, pval, e->fields_hd, e->persist_user);
+	count = ordered_partition_count(e->row_hd, pval);
+	snprintf(c, sizeof(c), "%d", count);
+	qmap_put(e->order_hd, pval, c);
+	return 0;
+}
+
+static int ordered_save(const char *source_id, const char *pval)
+{
+	registry_entry_t *e = find_entry(source_id);
+	if (!e || !e->ordered)
+		return -1;
+	if (!e->save_fn)
+		return 0;
+	return e->save_fn(source_id, pval, e->fields_hd, e->persist_user);
+}
+
+/* ---- auto-record (create qmap record from hyle field metadata) --------- */
+
+#define HYLE_AUTO_MAX_FIELDS 64
+
+static uint32_t hyle_source_auto_record(
+	const hyle_field_t *fields, size_t field_count)
+{
+	qmap_record_field_t qfields[HYLE_AUTO_MAX_FIELDS];
+	size_t               target_idx[HYLE_AUTO_MAX_FIELDS];
+	size_t               n;
+	size_t               struct_size;
+	size_t               i;
+	uint32_t             rid;
+
+	n = 0;
+	struct_size = 0;
+	for (i = 0; i < field_count && n < HYLE_AUTO_MAX_FIELDS; i++) {
+		size_t   sz;
+		uint32_t qt;
+
+		switch (fields[i].type) {
+		case HYLE_FIELD_STRING:
+		case HYLE_FIELD_NULLABLE_STRING:
+			sz = fields[i].max_length > 0
+				? fields[i].max_length : 256;
+			qt = QM_STR;
+			break;
+		case HYLE_FIELD_INT:
+		case HYLE_FIELD_BOOL:
+			sz = 16;
+			qt = QM_STR;
+			break;
+		case HYLE_FIELD_REFERENCE:
+			sz = 128;
+			qt = QM_REFERENCE;
+			break;
+		case HYLE_FIELD_MULTI_REFERENCE:
+			sz = 1024;
+			qt = QM_MULTI_REFERENCE;
+			break;
+		default:
+			continue;
+		}
+
+		qfields[n].name          = fields[i].name;
+		qfields[n].type          = qt;
+		qfields[n].offset        = struct_size;
+		qfields[n].max_size      = sz;
+		qfields[n].target_record = 0;
+		qfields[n].target_hd     = 0;
+		qfields[n].inverse       = NULL;
+		target_idx[n]            = i;
+		struct_size             += sz;
+		n++;
+	}
+
+	if (n == 0)
+		return 0;
+
+	rid = qmap_record_register(
+		"hyle_auto", struct_size, qfields, n);
+
+	if (rid == UINT32_MAX)
+		return 0;
+
+	/* Resolve target handles for reference fields */
+	for (i = 0; i < n; i++) {
+		if (qfields[i].type == QM_REFERENCE ||
+		    qfields[i].type == QM_MULTI_REFERENCE)
+		{
+			size_t fi = target_idx[i];
+			if (fields[fi].target_source) {
+				unsigned thd = hyle_source_get_fields_hd(
+					fields[fi].target_source);
+				if (thd)
+					qmap_record_field_set_target_hd(
+						rid, qfields[i].name, thd);
+			}
+		}
+	}
+
+	return rid;
+}
+
+/* ---- public API ------------------------------------------------------- */
+
+unsigned hyle_source_register_ordered(
+	const char *source_id,
+	const hyle_field_t *fields, size_t field_count,
+	const char *partition_field,
+	uint32_t record_id, unsigned flags,
+	hyle_persist_load_fn load_fn,
+	hyle_persist_save_fn save_fn,
+	void *persist_user)
+{
+	unsigned fhd;
+	registry_entry_t *e;
+	unsigned hyle_flags;
+
+	hyle_flags = flags & HYLE_AUTO_RECORD;
+	flags      = flags & ~HYLE_AUTO_RECORD;
+
+	if ((hyle_flags & HYLE_AUTO_RECORD) && record_id == 0 &&
+	    fields && field_count > 0)
+		record_id = hyle_source_auto_record(fields, field_count);
+
+	fhd = hyle_source_register(source_id, fields, field_count,
+		record_id, flags, NULL);
+	if (!fhd)
+		return 0;
+	e = find_entry(source_id);
+	if (!e)
+		return 0;
+	/* Close previous order/loaded maps if re-registering */
+	if (e->order_hd)
+		qmap_close(e->order_hd);
+	if (e->loaded_hd)
+		qmap_close(e->loaded_hd);
+	e->ordered = 1;
+	strncpy(e->partition_field,
+		partition_field ? partition_field : "",
+		sizeof(e->partition_field) - 1);
+	e->load_fn = load_fn;
+	e->save_fn = save_fn;
+	e->persist_user = persist_user;
+	e->order_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0x3F, 0);
+	e->loaded_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0x3F, 0);
+	return fhd;
+}
+
+int hyle_source_ordered_count(const char *source_id,
+	const char *pval)
+{
+	registry_entry_t *e;
+	const char *c;
+
+	if (ordered_ensure_loaded(source_id, pval) != 0)
+		return 0;
+	e = find_entry(source_id);
+	if (!e)
+		return 0;
+	c = qmap_get(e->order_hd, pval);
+	return c ? atoi(c) : 0;
+}
+
+const char *hyle_source_ordered_key_at(const char *source_id,
+	const char *pval, int pos)
+{
+	static char key[128];
+
+	if (ordered_ensure_loaded(source_id, pval) != 0)
+		return NULL;
+	ordered_build_key(key, sizeof(key), pval, pos);
+	return key;
+}
+
+int hyle_source_ordered_append(const char *source_id,
+	const char *pval,
+	const char **names, const char **values, size_t count)
+{
+	registry_entry_t *e;
+	int n;
+	char key[128], c[16];
+
+	if (ordered_ensure_loaded(source_id, pval) != 0)
+		return -1;
+	n = hyle_source_ordered_count(source_id, pval);
+	ordered_build_key(key, sizeof(key), pval, n);
+	hyle_source_put(source_id, key, names, values, count);
+	e = find_entry(source_id);
+	if (!e)
+		return -1;
+	snprintf(c, sizeof(c), "%d", n + 1);
+	qmap_put(e->order_hd, pval, c);
+	ordered_save(source_id, pval);
+	return 0;
+}
+
+int hyle_source_ordered_insert_at(const char *source_id,
+	const char *pval, int pos,
+	const char **names, const char **values, size_t count)
+{
+	registry_entry_t *e;
+	int n;
+	char key[128], c[16];
+
+	if (ordered_ensure_loaded(source_id, pval) != 0)
+		return -1;
+	e = find_entry(source_id);
+	if (!e)
+		return -1;
+	n = hyle_source_ordered_count(source_id, pval);
+	if (pos < 0 || pos > n)
+		return -1;
+	/* Reindex forward: [pos..n-1] → [pos+1..n] */
+	for (n = n - 1; n >= pos; n--)
+		ordered_move_key(e, pval, n, n + 1);
+	/* n is now pos-1; restore */
+	n = hyle_source_ordered_count(source_id, pval);
+	ordered_build_key(key, sizeof(key), pval, pos);
+	hyle_source_put(source_id, key, names, values, count);
+	n++;
+	snprintf(c, sizeof(c), "%d", n);
+	qmap_put(e->order_hd, pval, c);
+	ordered_save(source_id, pval);
+	return 0;
+}
+
+void hyle_source_ordered_remove_at(const char *source_id,
+	const char *pval, int pos)
+{
+	registry_entry_t *e;
+	int n;
+	char key[128], c[16];
+	int i;
+
+	if (ordered_ensure_loaded(source_id, pval) != 0)
+		return;
+	e = find_entry(source_id);
+	if (!e)
+		return;
+	n = hyle_source_ordered_count(source_id, pval);
+	if (pos < 0 || pos >= n)
+		return;
+	ordered_build_key(key, sizeof(key), pval, pos);
+	hyle_source_del(source_id, key);
+	/* Reindex backward: [pos+1..n-1] → [pos..n-2] */
+	for (i = pos; i < n - 1; i++)
+		ordered_move_key(e, pval, i + 1, i);
+	n--;
+	snprintf(c, sizeof(c), "%d", n);
+	qmap_put(e->order_hd, pval, c);
+	ordered_save(source_id, pval);
+}
+
+void hyle_source_ordered_clear(const char *source_id,
+	const char *pval)
+{
+	registry_entry_t *e;
+	int n;
+	int i;
+	char key[128];
+
+	if (ordered_ensure_loaded(source_id, pval) != 0)
+		return;
+	e = find_entry(source_id);
+	if (!e)
+		return;
+	n = hyle_source_ordered_count(source_id, pval);
+	/* Delete all positional keys */
+	for (i = 0; i < n; i++) {
+		ordered_build_key(key, sizeof(key), pval, i);
+		hyle_source_del(source_id, key);
+	}
+	qmap_put(e->order_hd, pval, "0");
+	ordered_save(source_id, pval);
+}
+
+void hyle_source_ordered_save(const char *source_id,
+	const char *pval)
+{
+	ordered_save(source_id, pval);
 }
