@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <locale.h>
 #include "hyle/hyle.h"
 #include <ttypt/qmap.h>
 
@@ -572,6 +573,59 @@ static void test_filter_q_and_field(void)
 
 	destroy_rows(&input);
 	qmap_close(output.row_hd);
+	hyle_ctx_free(ctx);
+}
+
+static void test_filter_accent_folding(void)
+{
+	printf("\n=== filter: accent folding ===\n");
+	hyle_ctx_t *ctx = hyle_ctx_new();
+	hyle_row_set_t input;
+
+	input.row_hd = make_row_hd();
+	input.fields_hd = make_row_hd();
+
+	row_set_add(&input, "songA");
+	row_set_field(&input, "songA", "title", "Coração Adorador");
+	row_set_add(&input, "songB");
+	row_set_field(&input, "songB", "title", "Maçã Verde");
+
+	hyle_field_filter_t f1[] = { { "title", "Coração" } };
+	hyle_field_filter_t f2[] = { { "title", "coracao" } };
+	hyle_field_filter_t f3[] = { { "title", "maca" } };
+	hyle_field_filter_t f4[] = { { "title", "Verde Verde" } };
+
+	hyle_row_set_t o1 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, NULL, f1, 1, NULL, 0, &o1);
+	CHECK_IDS(o1, "songA");
+
+	hyle_row_set_t o2 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, NULL, f2, 1, NULL, 0, &o2);
+	CHECK_IDS(o2, "songA");
+
+	hyle_row_set_t o3 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, NULL, f3, 1, NULL, 0, &o3);
+	CHECK_IDS(o3, "songB");
+
+	hyle_row_set_t o4 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, NULL, f4, 1, NULL, 0, &o4);
+	CHECK(qmap_count(o4.row_hd, NULL) == 0, "no match");
+
+	hyle_row_set_t o5 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "Maçã", NULL, 0, NULL, 0, &o5);
+	CHECK_IDS(o5, "songB");
+
+	hyle_row_set_t o6 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "maca", NULL, 0, NULL, 0, &o6);
+	CHECK_IDS(o6, "songB");
+
+	qmap_close(o1.row_hd);
+	qmap_close(o2.row_hd);
+	qmap_close(o3.row_hd);
+	qmap_close(o4.row_hd);
+	qmap_close(o5.row_hd);
+	qmap_close(o6.row_hd);
+	destroy_rows(&input);
 	hyle_ctx_free(ctx);
 }
 
@@ -1288,6 +1342,7 @@ static void test_purify_null_params(void)
 
 int main(void)
 {
+	setlocale(LC_ALL, "en_US.UTF-8");
 	printf("libhyle Phase 1+2+3 tests\n");
 	printf("-------------------------\n");
 
@@ -1319,6 +1374,7 @@ int main(void)
 	test_filter_fulltext();
 	test_filter_fulltext_no_match();
 	test_filter_q_and_field();
+	test_filter_accent_folding();
 
 	/* Phase 2 — sort */
 	test_sort_string_asc();

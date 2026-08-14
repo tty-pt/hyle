@@ -5,6 +5,8 @@
 #include <ctype.h>
 #include <math.h>
 #include <unistd.h>
+#include <iconv.h>
+#include <errno.h>
 #include "hyle/query.h"
 #include "hyle/field.h"
 #include <ttypt/qmap.h>
@@ -19,23 +21,103 @@ static const char *row_field_val(const hyle_row_set_t *rows,
 	return (const char *)qmap_get(rows->fields_hd, key);
 }
 
+/*
+ * Folds a UTF-8 string to lowercase ASCII base letters (accent
+ * insensitivity) using iconv's TRANSLIT tables, so any accented
+ * character maps to its base letter(s) generically. Returns the
+ * number of bytes written, or -1 if the output buffer is too small
+ * (caller falls back to raw comparison).
+ */
+static int fold_utf8(char *out, size_t outsz, const char *in)
+{
+	static iconv_t cd = (iconv_t)-1;
+	char   *in_ptr = (char *)in;
+	char   *out_ptr = out;
+	size_t  in_len = strlen(in);
+	size_t  out_len;
+	size_t  i;
+
+	if (outsz == 0)
+		return -1;
+
+	if (cd == (iconv_t)-1)
+		cd = iconv_open("ASCII//TRANSLIT", "UTF-8");
+	if (cd == (iconv_t)-1)
+		return -1;
+
+	out_len = outsz - 1;
+	while (in_len > 0 && out_len > 0) {
+		size_t res = iconv(cd, (void *)&in_ptr, &in_len,
+			(void *)&out_ptr, &out_len);
+		if (res != (size_t)-1)
+			continue;
+		if (errno != EILSEQ && errno != EINVAL)
+			break;
+		in_ptr++;
+		in_len--;
+		iconv(cd, NULL, NULL, (void *)&out_ptr, &out_len);
+	}
+
+	if (in_len > 0) {	/* output too small */
+		*out_ptr = '\0';
+		return -1;
+	}
+
+	for (i = 0; i < (size_t)(out_ptr - out); i++)
+		if (out[i] >= 'A' && out[i] <= 'Z')
+			out[i] = (char)(out[i] + 32);
+	*out_ptr = '\0';
+	return (int)(out_ptr - out);
+}
+
+static int ci_substr_raw(const char *str, const char *sub)
+{
+	size_t slen = strlen(str);
+	size_t nlen = strlen(sub);
+	size_t i;
+
+	if (nlen > slen)
+		return 0;
+
+	for (i = 0; i <= slen - nlen; i++) {
+		size_t j;
+		for (j = 0; j < nlen; j++) {
+			if (tolower((unsigned char)str[i + j])
+			    != tolower((unsigned char)sub[j]))
+				break;
+		}
+		if (j == nlen)
+			return 1;
+	}
+	return 0;
+}
+
 static int ci_substr(const char *str, const char *sub)
 {
+	char   fstr[4096];
+	char   fsub[256];
+	size_t slen;
+	size_t nlen;
+	size_t i;
+
 	if (!sub || !*sub)
 		return 1;
 	if (!str)
 		return 0;
 
-	size_t slen = strlen(str);
-	size_t nlen = strlen(sub);
+	if (fold_utf8(fsub, sizeof(fsub), sub) < 0 ||
+	    fold_utf8(fstr, sizeof(fstr), str) < 0)
+		return ci_substr_raw(str, sub);
+
+	slen = strlen(fstr);
+	nlen = strlen(fsub);
 	if (nlen > slen)
 		return 0;
 
-	for (size_t i = 0; i <= slen - nlen; i++) {
+	for (i = 0; i <= slen - nlen; i++) {
 		size_t j;
 		for (j = 0; j < nlen; j++) {
-			if (tolower((unsigned char)str[i + j])
-			    != tolower((unsigned char)sub[j]))
+			if (fstr[i + j] != fsub[j])
 				break;
 		}
 		if (j == nlen)
