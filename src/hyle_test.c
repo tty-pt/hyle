@@ -11,21 +11,24 @@
 static int failures = 0;
 static int total = 0;
 
-#define CHECK(cond, msg) do { \
-	total++; \
-	if (!(cond)) { \
-		fprintf(stderr, "FAIL (%s:%d): %s\n", __FILE__, __LINE__, msg); \
-		failures++; \
-	} else { \
-		printf("  ok  %s\n", msg); \
-	} \
-} while(0)
+#define CHECK(cond, msg)                                                       \
+	do {                                                                   \
+		total++;                                                       \
+		if (!(cond)) {                                                 \
+			fprintf(stderr, "FAIL (%s:%d): %s\n", __FILE__,        \
+			        __LINE__, msg);                                \
+			failures++;                                            \
+		} else {                                                       \
+			printf("  ok  %s\n", msg);                             \
+		}                                                              \
+	} while (0)
 
-#define CHECK_JSON(ctx, val, expected) do { \
-	char *_j = hyle_val_to_json(ctx, val); \
-	CHECK(_j && strcmp(_j, expected) == 0, "json == " expected); \
-	free(_j); \
-} while(0)
+#define CHECK_JSON(ctx, val, expected)                                         \
+	do {                                                                   \
+		char *_j = hyle_val_to_json(ctx, val);                         \
+		CHECK(_j &&strcmp(_j, expected) == 0, "json == " expected);    \
+		free(_j);                                                      \
+	} while (0)
 
 static void test_ctx(void)
 {
@@ -191,8 +194,8 @@ static unsigned make_row_hd(void)
 	return qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
 }
 
-static void row_set_field(hyle_row_set_t *rs,
-	const char *id, const char *field, const char *val)
+static void row_set_field(
+        hyle_row_set_t *rs, const char *id, const char *field, const char *val)
 {
 	char key[1024];
 	snprintf(key, sizeof(key), "%s:%s", id, field);
@@ -244,8 +247,9 @@ static void build_25rows(hyle_row_set_t *rs)
 	}
 }
 
-static int ids_match(const hyle_row_set_t *rs, const char **expected,
-	uint32_t expected_count)
+static int ids_match(
+        const hyle_row_set_t *rs, const char **expected,
+        uint32_t expected_count)
 {
 	uint32_t count = qmap_count(rs->row_hd, NULL);
 	if (count != expected_count)
@@ -274,8 +278,9 @@ static int ids_match(const hyle_row_set_t *rs, const char **expected,
 	return found == expected_count;
 }
 
-static int ids_in_order(const hyle_row_set_t *rs, const char **expected,
-	uint32_t expected_count)
+static int ids_in_order(
+        const hyle_row_set_t *rs, const char **expected,
+        uint32_t expected_count)
 {
 	uint32_t count = qmap_count(rs->row_hd, NULL);
 	if (count != expected_count)
@@ -304,23 +309,29 @@ static int ids_in_order(const hyle_row_set_t *rs, const char **expected,
 
 static void destroy_rows(hyle_row_set_t *rs)
 {
-	if (rs->row_hd)    qmap_close(rs->row_hd);
-	if (rs->fields_hd) qmap_close(rs->fields_hd);
+	if (rs->row_hd)
+		qmap_close(rs->row_hd);
+	if (rs->fields_hd)
+		qmap_close(rs->fields_hd);
 	rs->row_hd = 0;
 	rs->fields_hd = 0;
 }
 
-#define CHECK_IDS(rs, ...) do { \
-	const char *__exp[] = { __VA_ARGS__ }; \
-	uint32_t __n = sizeof(__exp) / sizeof(__exp[0]); \
-	CHECK(ids_match(&(rs), __exp, __n), "ids match (" #__VA_ARGS__ ")"); \
-} while (0)
+#define CHECK_IDS(rs, ...)                                                     \
+	do {                                                                   \
+		const char *__exp[] = { __VA_ARGS__ };                         \
+		uint32_t __n = sizeof(__exp) / sizeof(__exp[0]);               \
+		CHECK(ids_match(&(rs), __exp, __n),                            \
+		      "ids match (" #__VA_ARGS__ ")");                         \
+	} while (0)
 
-#define CHECK_ORDER(rs, ...) do { \
-	const char *__exp[] = { __VA_ARGS__ }; \
-	uint32_t __n = sizeof(__exp) / sizeof(__exp[0]); \
-	CHECK(ids_in_order(&(rs), __exp, __n), "ids in order (" #__VA_ARGS__ ")"); \
-} while (0)
+#define CHECK_ORDER(rs, ...)                                                   \
+	do {                                                                   \
+		const char *__exp[] = { __VA_ARGS__ };                         \
+		uint32_t __n = sizeof(__exp) / sizeof(__exp[0]);               \
+		CHECK(ids_in_order(&(rs), __exp, __n),                         \
+		      "ids in order (" #__VA_ARGS__ ")");                      \
+	} while (0)
 
 /* ================================================================
  * Phase 2: hyle_parse_query tests
@@ -409,7 +420,8 @@ static void test_parse_field_filter(void)
 	hyle_parse_query(buf, &q);
 	CHECK(q.filter_count == 1, "filter_count 1");
 	CHECK(strcmp(q.filters[0].field, "author") == 0, "filter field author");
-	CHECK(strcmp(q.filters[0].value, "Beatles") == 0, "filter value Beatles");
+	CHECK(strcmp(q.filters[0].value, "Beatles") == 0,
+	      "filter value Beatles");
 	hyle_query_clear(&q);
 }
 
@@ -431,7 +443,7 @@ static void test_parse_all_params(void)
 {
 	printf("\n=== parse: all params ===\n");
 	char buf[] = "sort=title:desc&page=1&per_page=20&q=love"
-		"&include=id,title&author=Alice";
+	             "&include=id,title&author=Alice";
 	hyle_query_t q;
 	hyle_parse_query(buf, &q);
 	CHECK(q.sort_field != NULL, "sort_field set");
@@ -467,9 +479,7 @@ static void test_filter_single_match(void)
 	hyle_row_set_t input;
 	build_4rows(&input);
 
-	hyle_field_filter_t filters[] = {
-		{ "author", "Alice" }
-	};
+	hyle_field_filter_t filters[] = { { "author", "Alice" } };
 	hyle_row_set_t output = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, NULL, filters, 1, NULL, 0, &output);
 
@@ -487,9 +497,7 @@ static void test_filter_no_match(void)
 	hyle_row_set_t input;
 	build_4rows(&input);
 
-	hyle_field_filter_t filters[] = {
-		{ "author", "Nobody" }
-	};
+	hyle_field_filter_t filters[] = { { "author", "Nobody" } };
 	hyle_row_set_t output = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, NULL, filters, 1, NULL, 0, &output);
 
@@ -507,10 +515,8 @@ static void test_filter_multi_and(void)
 	hyle_row_set_t input;
 	build_4rows(&input);
 
-	hyle_field_filter_t filters[] = {
-		{ "author", "Alice" },
-		{ "year", "2020" }
-	};
+	hyle_field_filter_t filters[] = { { "author", "Alice" },
+		                          { "year", "2020" } };
 	hyle_row_set_t output = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, NULL, filters, 2, NULL, 0, &output);
 
@@ -563,9 +569,7 @@ static void test_filter_q_and_field(void)
 	hyle_row_set_t input;
 	build_4rows(&input);
 
-	hyle_field_filter_t filters[] = {
-		{ "author", "Alice" }
-	};
+	hyle_field_filter_t filters[] = { { "author", "Alice" } };
 	hyle_row_set_t output = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, "hello", filters, 1, NULL, 0, &output);
 
@@ -645,7 +649,8 @@ static void test_sort_string_asc(void)
 	hyle_row_set_t output = { make_row_hd(), 0 };
 	hyle_sort_rows(ctx, &input, "title", 1, &output);
 
-	/* titles: "Goodbye World", "Hello Again", "Hello World", "Zebra Song" */
+	/* titles: "Goodbye World", "Hello Again", "Hello World", "Zebra Song"
+	 */
 	CHECK_ORDER(output, "song2", "song3", "song1", "song4");
 
 	destroy_rows(&input);
@@ -911,22 +916,21 @@ static void test_apply_view_sort_only(void)
  * ================================================================ */
 
 static const hyle_field_t test_fields[] = {
-	{ "id",         HYLE_FIELD_STRING,  1, NULL,             NULL,       1, 0,    0,    0, 0, NULL, 0 },
-	{ "title",      HYLE_FIELD_STRING,  1, NULL,             NULL,       1, 0,    0,    0, 0, NULL, 0 },
-	{ "author",     HYLE_FIELD_STRING,  1, NULL,             NULL,       0, 0,    0,    0, 0, NULL, 0 },
-	{ "year",       HYLE_FIELD_INT,     1, NULL,             NULL,       0, 1900, 2100, 0, 0, NULL, 0 },
-	{ "album",      HYLE_FIELD_STRING,  1, NULL,             NULL,       0, 0,    0,    0, 0, NULL, 0 },
-	{ "artist_id",  HYLE_FIELD_REFERENCE,        1, "artist.items",  NULL,       0, 0,    0,    0, 0, NULL, 0 },
-	{ "tags",       HYLE_FIELD_MULTI_REFERENCE,  1, "tag.items",    NULL,       0, 0,    0,    0, 0, NULL, 0 },
-	{ "songs",      HYLE_FIELD_INVERSE, 0, "test.songs",   "artist_id", 0, 0,    0,    0, 0, NULL, 0 },
+	{ "id", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL, 0 },
+	{ "title", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL, 0 },
+	{ "author", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "year", HYLE_FIELD_INT, 1, NULL, NULL, 0, 1900, 2100, 0, 0, NULL, 0 },
+	{ "album", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "artist_id", HYLE_FIELD_REFERENCE, 1, "artist.items", NULL, 0, 0, 0,
+	  0, 0, NULL, 0 },
+	{ "tags", HYLE_FIELD_MULTI_REFERENCE, 1, "tag.items", NULL, 0, 0, 0, 0,
+	  0, NULL, 0 },
+	{ "songs", HYLE_FIELD_INVERSE, 0, "test.songs", "artist_id", 0, 0, 0, 0,
+	  0, NULL, 0 },
 };
 
 static const hyle_source_schema_t test_schema = {
-	"test.songs",
-	"id",
-	test_fields,
-	8,
-	0,
+	"test.songs", "id", test_fields, 8, 0,
 };
 
 static const hyle_blueprint_t test_bp = {
@@ -957,8 +961,10 @@ static void test_field_lookup(void)
 static void test_field_is_reference(void)
 {
 	printf("\n=== field: hyle_field_is_reference ===\n");
-	CHECK(hyle_field_is_reference(HYLE_FIELD_REFERENCE), "REFERENCE is ref");
-	CHECK(hyle_field_is_reference(HYLE_FIELD_MULTI_REFERENCE), "MULTI_REFERENCE is ref");
+	CHECK(hyle_field_is_reference(HYLE_FIELD_REFERENCE),
+	      "REFERENCE is ref");
+	CHECK(hyle_field_is_reference(HYLE_FIELD_MULTI_REFERENCE),
+	      "MULTI_REFERENCE is ref");
 	CHECK(hyle_field_is_reference(HYLE_FIELD_INVERSE), "INVERSE is ref");
 	CHECK(!hyle_field_is_reference(HYLE_FIELD_STRING), "STRING not ref");
 	CHECK(!hyle_field_is_reference(HYLE_FIELD_INT), "INT not ref");
@@ -968,7 +974,8 @@ static void test_field_is_reference(void)
 static void test_manifest_valid(void)
 {
 	printf("\n=== manifest: valid all params ===\n");
-	char qstr[] = "sort=title:asc&page=2&per_page=10&q=love&include=title,author";
+	char qstr[] =
+	        "sort=title:asc&page=2&per_page=10&q=love&include=title,author";
 	hyle_query_t q;
 	hyle_parse_query(qstr, &q);
 
@@ -1033,7 +1040,8 @@ static void test_manifest_source_not_found(void)
 	hyle_query_t q;
 	memset(&q, 0, sizeof(q));
 	hyle_manifest_t m;
-	int rc = hyle_blueprint_manifest(&test_bp, "nonexistent.source", &q, &m);
+	int rc =
+	        hyle_blueprint_manifest(&test_bp, "nonexistent.source", &q, &m);
 	CHECK(rc == -1, "source not found returns -1");
 }
 
@@ -1144,7 +1152,8 @@ static void test_manifest_inverse_field(void)
 	CHECK(rc == 0, "manifest ok");
 	CHECK(m.select_count == 1, "select 1");
 	CHECK(m.inline_count == 1, "one inline");
-	CHECK(strcmp(m.inlines[0], "test.songs") == 0, "inline test.songs (self)");
+	CHECK(strcmp(m.inlines[0], "test.songs") == 0,
+	      "inline test.songs (self)");
 	hyle_manifest_clear(&m);
 	hyle_query_clear(&q);
 }
@@ -1168,9 +1177,10 @@ static void test_purify_required(void)
 {
 	printf("\n=== hyle_purify_row — required ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL, 0},
+		{ "name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL,
+		  0 },
 	};
-	const char *values[] = {NULL};
+	const char *values[] = { NULL };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 1, values, &errs, &nerr);
@@ -1181,7 +1191,7 @@ static void test_purify_required(void)
 	hyle_purify_errors_free(errs, nerr);
 
 	/* With value present */
-	const char *values2[] = {"Alice"};
+	const char *values2[] = { "Alice" };
 	rc = hyle_purify_row(fields, 1, values2, &errs, &nerr);
 	CHECK(rc == 0, "required field present → ok");
 }
@@ -1190,9 +1200,10 @@ static void test_purify_min(void)
 {
 	printf("\n=== hyle_purify_row — min ===\n");
 	hyle_field_t fields[] = {
-		{"age", HYLE_FIELD_INT, 1, NULL, NULL, 0, 18, 0, 0, 0, NULL, 0},
+		{ "age", HYLE_FIELD_INT, 1, NULL, NULL, 0, 18, 0, 0, 0, NULL,
+		  0 },
 	};
-	const char *values[] = {"15"};
+	const char *values[] = { "15" };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 1, values, &errs, &nerr);
@@ -1200,11 +1211,11 @@ static void test_purify_min(void)
 	CHECK(strcmp(errs[0].rule, "min") == 0, "rule is 'min'");
 	hyle_purify_errors_free(errs, nerr);
 
-	const char *values2[] = {"18"};
+	const char *values2[] = { "18" };
 	rc = hyle_purify_row(fields, 1, values2, &errs, &nerr);
 	CHECK(rc == 0, "value equal to min → ok");
 
-	const char *values3[] = {"25"};
+	const char *values3[] = { "25" };
 	rc = hyle_purify_row(fields, 1, values3, &errs, &nerr);
 	CHECK(rc == 0, "value above min → ok");
 }
@@ -1213,9 +1224,10 @@ static void test_purify_max(void)
 {
 	printf("\n=== hyle_purify_row — max ===\n");
 	hyle_field_t fields[] = {
-		{"score", HYLE_FIELD_INT, 1, NULL, NULL, 0, 0, 100, 0, 0, NULL, 0},
+		{ "score", HYLE_FIELD_INT, 1, NULL, NULL, 0, 0, 100, 0, 0, NULL,
+		  0 },
 	};
-	const char *values[] = {"101"};
+	const char *values[] = { "101" };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 1, values, &errs, &nerr);
@@ -1223,11 +1235,11 @@ static void test_purify_max(void)
 	CHECK(strcmp(errs[0].rule, "max") == 0, "rule is 'max'");
 	hyle_purify_errors_free(errs, nerr);
 
-	const char *values2[] = {"100"};
+	const char *values2[] = { "100" };
 	rc = hyle_purify_row(fields, 1, values2, &errs, &nerr);
 	CHECK(rc == 0, "value equal to max → ok");
 
-	const char *values3[] = {"50"};
+	const char *values3[] = { "50" };
 	rc = hyle_purify_row(fields, 1, values3, &errs, &nerr);
 	CHECK(rc == 0, "value below max → ok");
 }
@@ -1236,9 +1248,10 @@ static void test_purify_min_length(void)
 {
 	printf("\n=== hyle_purify_row — minLength ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 3, 0, NULL, 0},
+		{ "name", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 3, 0, NULL,
+		  0 },
 	};
-	const char *values[] = {"ab"};
+	const char *values[] = { "ab" };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 1, values, &errs, &nerr);
@@ -1246,11 +1259,11 @@ static void test_purify_min_length(void)
 	CHECK(strcmp(errs[0].rule, "minLength") == 0, "rule is 'minLength'");
 	hyle_purify_errors_free(errs, nerr);
 
-	const char *values2[] = {"abc"};
+	const char *values2[] = { "abc" };
 	rc = hyle_purify_row(fields, 1, values2, &errs, &nerr);
 	CHECK(rc == 0, "exact min length → ok");
 
-	const char *values3[] = {"abcd"};
+	const char *values3[] = { "abcd" };
 	rc = hyle_purify_row(fields, 1, values3, &errs, &nerr);
 	CHECK(rc == 0, "above min length → ok");
 }
@@ -1259,9 +1272,10 @@ static void test_purify_max_length(void)
 {
 	printf("\n=== hyle_purify_row — maxLength ===\n");
 	hyle_field_t fields[] = {
-		{"code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 3, NULL, 0},
+		{ "code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 3, NULL,
+		  0 },
 	};
-	const char *values[] = {"abcd"};
+	const char *values[] = { "abcd" };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 1, values, &errs, &nerr);
@@ -1269,11 +1283,11 @@ static void test_purify_max_length(void)
 	CHECK(strcmp(errs[0].rule, "maxLength") == 0, "rule is 'maxLength'");
 	hyle_purify_errors_free(errs, nerr);
 
-	const char *values2[] = {"abc"};
+	const char *values2[] = { "abc" };
 	rc = hyle_purify_row(fields, 1, values2, &errs, &nerr);
 	CHECK(rc == 0, "exact max length → ok");
 
-	const char *values3[] = {"ab"};
+	const char *values3[] = { "ab" };
 	rc = hyle_purify_row(fields, 1, values3, &errs, &nerr);
 	CHECK(rc == 0, "below max length → ok");
 }
@@ -1282,16 +1296,17 @@ static void test_purify_pattern(void)
 {
 	printf("\n=== hyle_purify_row — pattern ===\n");
 	hyle_field_t fields[] = {
-		{"code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, "^[A-Z]{3}$", 0},
+		{ "code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0,
+		  "^[A-Z]{3}$", 0 },
 	};
-	const char *values[] = {"ABC"};
+	const char *values[] = { "ABC" };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 1, values, &errs, &nerr);
 	CHECK(rc == 0, "matching pattern → ok");
 	hyle_purify_errors_free(errs, nerr);
 
-	const char *values2[] = {"abcd"};
+	const char *values2[] = { "abcd" };
 	rc = hyle_purify_row(fields, 1, values2, &errs, &nerr);
 	CHECK(rc != 0, "non-matching pattern → error");
 	CHECK(strcmp(errs[0].rule, "pattern") == 0, "rule is 'pattern'");
@@ -1302,10 +1317,12 @@ static void test_purify_valid(void)
 {
 	printf("\n=== hyle_purify_row — valid row ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 2, 0, NULL, 0},
-		{"age",  HYLE_FIELD_INT,    1, NULL, NULL, 0, 18, 99, 0, 0, NULL, 0},
+		{ "name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 2, 0, NULL,
+		  0 },
+		{ "age", HYLE_FIELD_INT, 1, NULL, NULL, 0, 18, 99, 0, 0, NULL,
+		  0 },
 	};
-	const char *values[] = {"Alice", "30"};
+	const char *values[] = { "Alice", "30" };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 2, values, &errs, &nerr);
@@ -1317,10 +1334,12 @@ static void test_purify_multiple_errors(void)
 {
 	printf("\n=== hyle_purify_row — multiple errors ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL, 0},
-		{"age",  HYLE_FIELD_INT,    1, NULL, NULL, 0, 18, 99, 0, 0, NULL, 0},
+		{ "name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL,
+		  0 },
+		{ "age", HYLE_FIELD_INT, 1, NULL, NULL, 0, 18, 99, 0, 0, NULL,
+		  0 },
 	};
-	const char *values[] = {NULL, "15"};
+	const char *values[] = { NULL, "15" };
 	hyle_purify_error_t *errs;
 	size_t nerr;
 	int rc = hyle_purify_row(fields, 2, values, &errs, &nerr);
@@ -1343,21 +1362,23 @@ static void test_purify_null_params(void)
  * ================================================================ */
 
 static const hyle_field_t fts_fields[] = {
-	{ "title",  HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256, NULL, 1 },
-	{ "author", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256, NULL, 1 },
-	{ "year",   HYLE_FIELD_INT,    1, NULL, NULL, 0, 0, 0, 0, 16,  NULL, 0 },
+	{ "title", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256, NULL, 1 },
+	{ "author", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256, NULL,
+	  1 },
+	{ "year", HYLE_FIELD_INT, 1, NULL, NULL, 0, 0, 0, 0, 16, NULL, 0 },
 };
 
-static void fts_put_row(const char *id, const char *title,
-	const char *author, const char *year)
+static void fts_put_row(
+        const char *id, const char *title, const char *author, const char *year)
 {
-	const char *names[3]  = { "title", "author", "year" };
+	const char *names[3] = { "title", "author", "year" };
 	const char *values[3] = { title, author, year };
 	hyle_source_put("fts.test", id, names, values, 3);
 }
 
-static void fts_query_src(const char *src, const char *field,
-	const char *value, hyle_row_set_t *out)
+static void fts_query_src(
+        const char *src, const char *field, const char *value,
+        hyle_row_set_t *out)
 {
 	hyle_field_filter_t filters[1] = { { field, value } };
 	hyle_query_t q;
@@ -1368,8 +1389,8 @@ static void fts_query_src(const char *src, const char *field,
 	hyle_source_query(src, &q, out, NULL);
 }
 
-static void fts_query_filter(const char *field, const char *value,
-	hyle_row_set_t *out)
+static void
+fts_query_filter(const char *field, const char *value, hyle_row_set_t *out)
 {
 	fts_query_src("fts.test", field, value, out);
 }
@@ -1381,8 +1402,7 @@ static void test_fts(void)
 	printf("\n=== full-text index (stoma) ===\n");
 	hyle_source_register("fts.test", fts_fields, 3, 0, 0, NULL);
 
-	fts_put_row("song1", "Starlight of the night",
-		"Alice Smith", "2020");
+	fts_put_row("song1", "Starlight of the night", "Alice Smith", "2020");
 	fts_put_row("song2", "Station one", "Bob Jones", "2021");
 	fts_put_row("song3", "A Dark Night", "Alice", "2020");
 	fts_put_row("song4", "Nostalgia", "Carol", "2022");
@@ -1443,7 +1463,7 @@ static void test_fts(void)
 	fts_put_row("song1", "Brand New Title", "Alice Smith", "2020");
 	fts_query_filter("title", "starlight", &out);
 	CHECK(qmap_count(out.row_hd, NULL) == 0,
-		"stale token gone after update");
+	      "stale token gone after update");
 	qmap_close(out.row_hd);
 	fts_query_filter("title", "brand", &out);
 	CHECK_IDS(out, "song1");
@@ -1488,13 +1508,12 @@ static void test_fts_record(void)
 	uint32_t rec;
 	unsigned fhd;
 	hyle_row_set_t out;
-	const char *names[2]  = { "title", "author" };
+	const char *names[2] = { "title", "author" };
 	const char *values[2] = { "Starlight over record", "Dora" };
 
 	printf("\n=== record-aware hyle_source_put (FTS) ===\n");
 
-	rec = qmap_record_register("fts.rec", sizeof(fts_rec_t),
-		rec_fields, 2);
+	rec = qmap_record_register("fts.rec", sizeof(fts_rec_t), rec_fields, 2);
 	CHECK(rec != QM_MISS, "record layout registered");
 
 	fhd = hyle_source_register("fts.rec", fields, 2, rec, 0, NULL);
@@ -1504,8 +1523,8 @@ static void test_fts_record(void)
 
 	/* record branch wrote via qmap_field_put → struct field set */
 	CHECK(strcmp(qmap_field_get(fhd, "r1", "title"),
-		"Starlight over record") == 0,
-		"record branch: title round-trips via qmap_field_get");
+	             "Starlight over record") == 0,
+	      "record branch: title round-trips via qmap_field_get");
 
 	/* FTS over the record source (first query rebuilds) */
 	fts_query_src("fts.rec", "title", "star", &out);
@@ -1535,7 +1554,6 @@ static void test_fts_record(void)
 
 int main(void)
 {
-	setlocale(LC_ALL, "en_US.UTF-8");
 	printf("libhyle Phase 1+2+3 tests\n");
 	printf("-------------------------\n");
 
