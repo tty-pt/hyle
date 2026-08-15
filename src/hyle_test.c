@@ -3,7 +3,9 @@
 #include <string.h>
 #include <assert.h>
 #include <locale.h>
+#include <stddef.h>
 #include "hyle/hyle.h"
+#include "hyle/source.h"
 #include <ttypt/qmap.h>
 
 static int failures = 0;
@@ -909,14 +911,14 @@ static void test_apply_view_sort_only(void)
  * ================================================================ */
 
 static const hyle_field_t test_fields[] = {
-	{ "id",         HYLE_FIELD_STRING,  1, NULL,             NULL,       1, 0,    0,    0, 0, NULL },
-	{ "title",      HYLE_FIELD_STRING,  1, NULL,             NULL,       1, 0,    0,    0, 0, NULL },
-	{ "author",     HYLE_FIELD_STRING,  1, NULL,             NULL,       0, 0,    0,    0, 0, NULL },
-	{ "year",       HYLE_FIELD_INT,     1, NULL,             NULL,       0, 1900, 2100, 0, 0, NULL },
-	{ "album",      HYLE_FIELD_STRING,  1, NULL,             NULL,       0, 0,    0,    0, 0, NULL },
-	{ "artist_id",  HYLE_FIELD_REFERENCE,        1, "artist.items",  NULL,       0, 0,    0,    0, 0, NULL },
-	{ "tags",       HYLE_FIELD_MULTI_REFERENCE,  1, "tag.items",    NULL,       0, 0,    0,    0, 0, NULL },
-	{ "songs",      HYLE_FIELD_INVERSE, 0, "test.songs",   "artist_id", 0, 0,    0,    0, 0, NULL },
+	{ "id",         HYLE_FIELD_STRING,  1, NULL,             NULL,       1, 0,    0,    0, 0, NULL, 0 },
+	{ "title",      HYLE_FIELD_STRING,  1, NULL,             NULL,       1, 0,    0,    0, 0, NULL, 0 },
+	{ "author",     HYLE_FIELD_STRING,  1, NULL,             NULL,       0, 0,    0,    0, 0, NULL, 0 },
+	{ "year",       HYLE_FIELD_INT,     1, NULL,             NULL,       0, 1900, 2100, 0, 0, NULL, 0 },
+	{ "album",      HYLE_FIELD_STRING,  1, NULL,             NULL,       0, 0,    0,    0, 0, NULL, 0 },
+	{ "artist_id",  HYLE_FIELD_REFERENCE,        1, "artist.items",  NULL,       0, 0,    0,    0, 0, NULL, 0 },
+	{ "tags",       HYLE_FIELD_MULTI_REFERENCE,  1, "tag.items",    NULL,       0, 0,    0,    0, 0, NULL, 0 },
+	{ "songs",      HYLE_FIELD_INVERSE, 0, "test.songs",   "artist_id", 0, 0,    0,    0, 0, NULL, 0 },
 };
 
 static const hyle_source_schema_t test_schema = {
@@ -1166,7 +1168,7 @@ static void test_purify_required(void)
 {
 	printf("\n=== hyle_purify_row — required ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL},
+		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL, 0},
 	};
 	const char *values[] = {NULL};
 	hyle_purify_error_t *errs;
@@ -1188,7 +1190,7 @@ static void test_purify_min(void)
 {
 	printf("\n=== hyle_purify_row — min ===\n");
 	hyle_field_t fields[] = {
-		{"age", HYLE_FIELD_INT, 1, NULL, NULL, 0, 18, 0, 0, 0, NULL},
+		{"age", HYLE_FIELD_INT, 1, NULL, NULL, 0, 18, 0, 0, 0, NULL, 0},
 	};
 	const char *values[] = {"15"};
 	hyle_purify_error_t *errs;
@@ -1211,7 +1213,7 @@ static void test_purify_max(void)
 {
 	printf("\n=== hyle_purify_row — max ===\n");
 	hyle_field_t fields[] = {
-		{"score", HYLE_FIELD_INT, 1, NULL, NULL, 0, 0, 100, 0, 0, NULL},
+		{"score", HYLE_FIELD_INT, 1, NULL, NULL, 0, 0, 100, 0, 0, NULL, 0},
 	};
 	const char *values[] = {"101"};
 	hyle_purify_error_t *errs;
@@ -1234,7 +1236,7 @@ static void test_purify_min_length(void)
 {
 	printf("\n=== hyle_purify_row — minLength ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 3, 0, NULL},
+		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 3, 0, NULL, 0},
 	};
 	const char *values[] = {"ab"};
 	hyle_purify_error_t *errs;
@@ -1257,7 +1259,7 @@ static void test_purify_max_length(void)
 {
 	printf("\n=== hyle_purify_row — maxLength ===\n");
 	hyle_field_t fields[] = {
-		{"code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 3, NULL},
+		{"code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 3, NULL, 0},
 	};
 	const char *values[] = {"abcd"};
 	hyle_purify_error_t *errs;
@@ -1280,7 +1282,7 @@ static void test_purify_pattern(void)
 {
 	printf("\n=== hyle_purify_row — pattern ===\n");
 	hyle_field_t fields[] = {
-		{"code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, "^[A-Z]{3}$"},
+		{"code", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, "^[A-Z]{3}$", 0},
 	};
 	const char *values[] = {"ABC"};
 	hyle_purify_error_t *errs;
@@ -1300,8 +1302,8 @@ static void test_purify_valid(void)
 {
 	printf("\n=== hyle_purify_row — valid row ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 2, 0, NULL},
-		{"age",  HYLE_FIELD_INT,    1, NULL, NULL, 0, 18, 99, 0, 0, NULL},
+		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 2, 0, NULL, 0},
+		{"age",  HYLE_FIELD_INT,    1, NULL, NULL, 0, 18, 99, 0, 0, NULL, 0},
 	};
 	const char *values[] = {"Alice", "30"};
 	hyle_purify_error_t *errs;
@@ -1315,8 +1317,8 @@ static void test_purify_multiple_errors(void)
 {
 	printf("\n=== hyle_purify_row — multiple errors ===\n");
 	hyle_field_t fields[] = {
-		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL},
-		{"age",  HYLE_FIELD_INT,    1, NULL, NULL, 0, 18, 99, 0, 0, NULL},
+		{"name", HYLE_FIELD_STRING, 1, NULL, NULL, 1, 0, 0, 0, 0, NULL, 0},
+		{"age",  HYLE_FIELD_INT,    1, NULL, NULL, 0, 18, 99, 0, 0, NULL, 0},
 	};
 	const char *values[] = {NULL, "15"};
 	hyle_purify_error_t *errs;
@@ -1334,6 +1336,197 @@ static void test_purify_null_params(void)
 	printf("\n=== hyle_purify_row — null params ===\n");
 	int rc = hyle_purify_row(NULL, 0, NULL, NULL, NULL);
 	CHECK(rc == 0, "null fields → ok");
+}
+
+/* ================================================================
+ * Phase 6 — full-text index (stoma) via hyle_source_query
+ * ================================================================ */
+
+static const hyle_field_t fts_fields[] = {
+	{ "title",  HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256, NULL, 1 },
+	{ "author", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256, NULL, 1 },
+	{ "year",   HYLE_FIELD_INT,    1, NULL, NULL, 0, 0, 0, 0, 16,  NULL, 0 },
+};
+
+static void fts_put_row(const char *id, const char *title,
+	const char *author, const char *year)
+{
+	const char *names[3]  = { "title", "author", "year" };
+	const char *values[3] = { title, author, year };
+	hyle_source_put("fts.test", id, names, values, 3);
+}
+
+static void fts_query_src(const char *src, const char *field,
+	const char *value, hyle_row_set_t *out)
+{
+	hyle_field_filter_t filters[1] = { { field, value } };
+	hyle_query_t q;
+
+	memset(&q, 0, sizeof(q));
+	q.filters = filters;
+	q.filter_count = 1;
+	hyle_source_query(src, &q, out, NULL);
+}
+
+static void fts_query_filter(const char *field, const char *value,
+	hyle_row_set_t *out)
+{
+	fts_query_src("fts.test", field, value, out);
+}
+
+static void test_fts(void)
+{
+	hyle_row_set_t out;
+
+	printf("\n=== full-text index (stoma) ===\n");
+	hyle_source_register("fts.test", fts_fields, 3, 0, 0, NULL);
+
+	fts_put_row("song1", "Starlight of the night",
+		"Alice Smith", "2020");
+	fts_put_row("song2", "Station one", "Bob Jones", "2021");
+	fts_put_row("song3", "A Dark Night", "Alice", "2020");
+	fts_put_row("song4", "Nostalgia", "Carol", "2022");
+
+	/* exact token */
+	fts_query_filter("title", "night", &out);
+	CHECK_IDS(out, "song1", "song3");
+	qmap_close(out.row_hd);
+
+	/* prefix: st → starlight + station, NOT nostalgia */
+	fts_query_filter("title", "st", &out);
+	CHECK_IDS(out, "song1", "song2");
+	qmap_close(out.row_hd);
+
+	/* two-token AND */
+	fts_query_filter("title", "dark night", &out);
+	CHECK_IDS(out, "song3");
+	qmap_close(out.row_hd);
+
+	/* case-insensitive author */
+	fts_query_filter("author", "ALICE", &out);
+	CHECK_IDS(out, "song1", "song3");
+	qmap_close(out.row_hd);
+
+	/* mixed searchable + non-searchable AND */
+	{
+		hyle_field_filter_t filters[2] = {
+			{ "title", "night" },
+			{ "year", "2020" },
+		};
+		hyle_query_t q;
+
+		memset(&q, 0, sizeof(q));
+		q.filters = filters;
+		q.filter_count = 2;
+		hyle_source_query("fts.test", &q, &out, NULL);
+		CHECK_IDS(out, "song1", "song3");
+		qmap_close(out.row_hd);
+	}
+
+	/* two searchable filters AND */
+	{
+		hyle_field_filter_t filters[2] = {
+			{ "title", "night" },
+			{ "author", "ALICE" },
+		};
+		hyle_query_t q;
+
+		memset(&q, 0, sizeof(q));
+		q.filters = filters;
+		q.filter_count = 2;
+		hyle_source_query("fts.test", &q, &out, NULL);
+		CHECK_IDS(out, "song1", "song3");
+		qmap_close(out.row_hd);
+	}
+
+	/* update → lazy rebuild: stale token gone, new token matches */
+	fts_put_row("song1", "Brand New Title", "Alice Smith", "2020");
+	fts_query_filter("title", "starlight", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0,
+		"stale token gone after update");
+	qmap_close(out.row_hd);
+	fts_query_filter("title", "brand", &out);
+	CHECK_IDS(out, "song1");
+	qmap_close(out.row_hd);
+
+	/* delete → gone */
+	hyle_source_del("fts.test", "song2");
+	fts_query_filter("title", "st", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0, "deleted row gone");
+	qmap_close(out.row_hd);
+
+	/* empty filter value → no-op, matches everything */
+	fts_query_filter("title", "", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 3, "empty filter matches all");
+	qmap_close(out.row_hd);
+
+	/* non-searchable field still filtered by the old path */
+	fts_query_filter("year", "2021", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0, "year filter via old path");
+	qmap_close(out.row_hd);
+}
+
+typedef struct {
+	char title[256];
+	char author[256];
+} fts_rec_t;
+
+static void test_fts_record(void)
+{
+	static const qmap_record_field_t rec_fields[2] = {
+		{ "title", QM_STR, offsetof(fts_rec_t, title),
+		  sizeof(((fts_rec_t *)0)->title), 0, 0, NULL },
+		{ "author", QM_STR, offsetof(fts_rec_t, author),
+		  sizeof(((fts_rec_t *)0)->author), 0, 0, NULL },
+	};
+	static const hyle_field_t fields[2] = {
+		{ "title", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256,
+		  NULL, 1 },
+		{ "author", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 256,
+		  NULL, 1 },
+	};
+	uint32_t rec;
+	unsigned fhd;
+	hyle_row_set_t out;
+	const char *names[2]  = { "title", "author" };
+	const char *values[2] = { "Starlight over record", "Dora" };
+
+	printf("\n=== record-aware hyle_source_put (FTS) ===\n");
+
+	rec = qmap_record_register("fts.rec", sizeof(fts_rec_t),
+		rec_fields, 2);
+	CHECK(rec != QM_MISS, "record layout registered");
+
+	fhd = hyle_source_register("fts.rec", fields, 2, rec, 0, NULL);
+	CHECK(fhd != 0, "record source registered");
+
+	hyle_source_put("fts.rec", "r1", names, values, 2);
+
+	/* record branch wrote via qmap_field_put → struct field set */
+	CHECK(strcmp(qmap_field_get(fhd, "r1", "title"),
+		"Starlight over record") == 0,
+		"record branch: title round-trips via qmap_field_get");
+
+	/* FTS over the record source (first query rebuilds) */
+	fts_query_src("fts.rec", "title", "star", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 1, "record FTS query hits r1");
+	qmap_close(out.row_hd);
+
+	/* foreign-writer update via put → dirty → lazy rebuild */
+	values[0] = "Moonlight now";
+	hyle_source_put("fts.rec", "r1", names, values, 2);
+	fts_query_src("fts.rec", "title", "starlight", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0, "stale token gone (record)");
+	qmap_close(out.row_hd);
+	fts_query_src("fts.rec", "title", "moonlight", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 1, "new token matches (record)");
+	qmap_close(out.row_hd);
+
+	/* delete → gone from the record source */
+	hyle_source_del("fts.rec", "r1");
+	fts_query_src("fts.rec", "title", "moonlight", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0, "deleted record row gone");
+	qmap_close(out.row_hd);
 }
 
 /* ================================================================
@@ -1424,6 +1617,10 @@ int main(void)
 	test_purify_pattern();
 	test_purify_valid();
 	test_purify_multiple_errors();
+
+	/* Phase 6 — full-text index */
+	test_fts();
+	test_fts_record();
 
 	printf("\n-----------------------\n");
 	printf("Results: %d/%d passed", total - failures, total);

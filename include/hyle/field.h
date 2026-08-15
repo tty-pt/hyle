@@ -26,6 +26,7 @@ typedef struct {
 	size_t min_length;
 	size_t max_length;
 	const char *pattern;
+	int searchable;
 } hyle_field_t;
 
 const hyle_field_t *hyle_field_by_name(

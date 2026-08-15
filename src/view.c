@@ -5,8 +5,7 @@
 #include <ctype.h>
 #include <math.h>
 #include <unistd.h>
-#include <iconv.h>
-#include <errno.h>
+#include <stoma/stoma.h>
 #include "hyle/query.h"
 #include "hyle/field.h"
 #include <ttypt/qmap.h>
@@ -19,55 +18,6 @@ static const char *row_field_val(const hyle_row_set_t *rows,
 	char key[1024];
 	snprintf(key, sizeof(key), "%s:%s", id, field);
 	return (const char *)qmap_get(rows->fields_hd, key);
-}
-
-/*
- * Folds a UTF-8 string to lowercase ASCII base letters (accent
- * insensitivity) using iconv's TRANSLIT tables, so any accented
- * character maps to its base letter(s) generically. Returns the
- * number of bytes written, or -1 if the output buffer is too small
- * (caller falls back to raw comparison).
- */
-static int fold_utf8(char *out, size_t outsz, const char *in)
-{
-	static iconv_t cd = (iconv_t)-1;
-	char   *in_ptr = (char *)in;
-	char   *out_ptr = out;
-	size_t  in_len = strlen(in);
-	size_t  out_len;
-	size_t  i;
-
-	if (outsz == 0)
-		return -1;
-
-	if (cd == (iconv_t)-1)
-		cd = iconv_open("ASCII//TRANSLIT", "UTF-8");
-	if (cd == (iconv_t)-1)
-		return -1;
-
-	out_len = outsz - 1;
-	while (in_len > 0 && out_len > 0) {
-		size_t res = iconv(cd, (void *)&in_ptr, &in_len,
-			(void *)&out_ptr, &out_len);
-		if (res != (size_t)-1)
-			continue;
-		if (errno != EILSEQ && errno != EINVAL)
-			break;
-		in_ptr++;
-		in_len--;
-		iconv(cd, NULL, NULL, (void *)&out_ptr, &out_len);
-	}
-
-	if (in_len > 0) {	/* output too small */
-		*out_ptr = '\0';
-		return -1;
-	}
-
-	for (i = 0; i < (size_t)(out_ptr - out); i++)
-		if (out[i] >= 'A' && out[i] <= 'Z')
-			out[i] = (char)(out[i] + 32);
-	*out_ptr = '\0';
-	return (int)(out_ptr - out);
 }
 
 static int ci_substr_raw(const char *str, const char *sub)
@@ -105,8 +55,8 @@ static int ci_substr(const char *str, const char *sub)
 	if (!str)
 		return 0;
 
-	if (fold_utf8(fsub, sizeof(fsub), sub) < 0 ||
-	    fold_utf8(fstr, sizeof(fstr), str) < 0)
+	if (stoma_fold(fsub, sizeof(fsub), sub) < 0 ||
+	    stoma_fold(fstr, sizeof(fstr), str) < 0)
 		return ci_substr_raw(str, sub);
 
 	slen = strlen(fstr);

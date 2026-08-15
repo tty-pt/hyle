@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <limits.h>
 #include <ttypt/qmap.h>
+#include <stoma/stoma.h>
 #include "hyle/source.h"
 #include "hyle/query.h"
 #include "hyle/ctx.h"
@@ -28,6 +29,8 @@ typedef struct {
 	void              *persist_user;
 	unsigned           order_hd;   /* qmap: pval → count (str) */
 	unsigned           loaded_hd;  /* qmap: pval → "" (loaded flag) */
+	stoma_db_t        *stoma;      /* full-text index, NULL if no searchable field */
+	int                stoma_dirty;
 } registry_entry_t;
 
 static registry_entry_t registry[HYLE_SOURCE_MAX];
@@ -76,6 +79,7 @@ unsigned hyle_source_register(
 	registry_entry_t *e;
 	unsigned          flds_hd;
 	uint32_t          val_type;
+	size_t            i;
 
 	e = alloc_entry(source_id);
 	if (!e)
@@ -120,6 +124,19 @@ unsigned hyle_source_register(
 	e->record_id   = record_id;
 	e->user        = user;
 
+	/* Full-text index: one per source, only when a field opts in. */
+	if (e->stoma) {
+		stoma_close(e->stoma);
+		e->stoma = NULL;
+	}
+	for (i = 0; i < field_count; i++) {
+		if (fields[i].searchable) {
+			e->stoma = stoma_open(0);
+			break;
+		}
+	}
+	e->stoma_dirty = 1;
+
 	return flds_hd;
 }
 
@@ -147,9 +164,21 @@ int hyle_source_put(const char *source_id,
 	for (i = 0; i < count; i++) {
 		if (!names[i])
 			continue;
-		snprintf(key, sizeof(key), "%s:%s", row_id, names[i]);
-		qmap_put(e->fields_hd, key, values[i] ? values[i] : "");
+		if (e->record_id && !e->ordered) {
+			/* Record-aware: per-field write with reference
+			 * resolution (slug->position). Ordered sources store
+			 * raw composite values and must keep this path. */
+			qmap_field_put(e->fields_hd, row_id, names[i],
+				values[i] ? values[i] : "");
+		} else {
+			snprintf(key, sizeof(key), "%s:%s",
+				row_id, names[i]);
+			qmap_put(e->fields_hd, key,
+				values[i] ? values[i] : "");
+		}
 	}
+	if (e->stoma)
+		e->stoma_dirty = 1;
 	return 0;
 }
 
@@ -166,6 +195,8 @@ void hyle_source_del(const char *source_id, const char *row_id)
 		return;
 	qmap_del(e->row_hd, row_id);
 	qmap_del(e->fields_hd, row_id);
+	if (e->stoma)
+		e->stoma_dirty = 1;
 }
 
 /* ---- hyle_row_set_free ---- */
@@ -195,7 +226,8 @@ void hyle_row_set_free(hyle_row_set_t *rs)
 static unsigned prefilter_multi_ref(
 	const registry_entry_t *e,
 	hyle_field_filter_t *local_filters,
-	unsigned filter_count)
+	unsigned filter_count,
+	unsigned base_hd)
 {
 	unsigned  fi;
 	unsigned  pre_hd = 0;
@@ -242,7 +274,7 @@ static unsigned prefilter_multi_ref(
 			continue;
 
 		cur = qmap_iter(
-			pre_hd ? pre_hd : e->row_hd, NULL, 0);
+			base_hd ? base_hd : e->row_hd, NULL, 0);
 		while (qmap_next(&k, &v, cur)) {
 			const char *rid = (const char *)k;
 			const char *fv  = qmap_field_get(
@@ -283,6 +315,136 @@ static unsigned prefilter_multi_ref(
 	return pre_hd;
 }
 
+/* ---- full-text pre-filter --------------------------------------------- */
+/*
+ * For searchable fields, resolve each filter against the stoma index and
+ * intersect the matching row sets, so apply_view only sees rows that match.
+ * Rebuilds the index lazily (stoma_clear + re-index) the first time a
+ * searchable filter arrives after any mutation.
+ *
+ * Returns a newly-opened candidate row_hd (caller must close), or 0 if no
+ * full-text pre-filtering was needed. Zeroes the filter value in
+ * local_filters for each handled filter.
+ */
+static unsigned prefilter_fts(
+	registry_entry_t *e,
+	hyle_field_filter_t *local_filters,
+	unsigned filter_count)
+{
+	unsigned  fi;
+	unsigned  fts_hd = 0;
+
+	if (!e->stoma)
+		return 0;
+
+	/* Any searchable filter present? Rebuild the index if stale. */
+	for (fi = 0; fi < filter_count; fi++) {
+		size_t sj;
+
+		if (!local_filters[fi].field)
+			continue;
+		for (sj = 0; sj < e->field_count; sj++) {
+			if (strcmp(e->fields[sj].name,
+				local_filters[fi].field) == 0)
+				break;
+		}
+		if (sj < e->field_count && e->fields[sj].searchable)
+			break;
+	}
+	if (fi >= filter_count)
+		return 0;
+
+	if (e->stoma_dirty) {
+		uint32_t cur;
+		const void *k;
+		const void *v;
+
+		stoma_clear(e->stoma);
+		cur = qmap_iter(e->row_hd, NULL, 0);
+		while (qmap_next(&k, &v, cur)) {
+			const char *rid = (const char *)k;
+			size_t      sj;
+
+			for (sj = 0; sj < e->field_count; sj++) {
+				char        key[1024];
+				const char *fv;
+
+				if (!e->fields[sj].searchable)
+					continue;
+				/* qmap_field_get is record-map-only; the
+				 * composite "row:field" key resolves on both
+				 * plain and record maps (view.c row_field_val). */
+				snprintf(key, sizeof(key), "%s:%s",
+					rid, e->fields[sj].name);
+				fv = qmap_get(e->fields_hd, key);
+				if (fv)
+					stoma_index(e->stoma,
+						e->fields[sj].name, rid, fv);
+			}
+		}
+		qmap_fin(cur);
+		e->stoma_dirty = 0;
+	}
+
+	for (fi = 0; fi < filter_count; fi++) {
+		const char  *fname = local_filters[fi].field;
+		const char  *value = local_filters[fi].value;
+		size_t       sj;
+		unsigned     tmp_hd;
+		uint32_t     cur;
+		const void  *k;
+		const void  *v;
+		int          handled = 0;
+
+		if (!fname || !value || !value[0])
+			continue;
+		for (sj = 0; sj < e->field_count; sj++) {
+			if (strcmp(e->fields[sj].name, fname) == 0)
+				break;
+		}
+		if (sj >= e->field_count)
+			continue;
+		if (!e->fields[sj].searchable)
+			continue;
+
+		tmp_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
+		if (!tmp_hd)
+			continue;
+		stoma_query(e->stoma, fname, value, tmp_hd, &handled);
+		if (!handled) {
+			qmap_close(tmp_hd);
+			continue;
+		}
+
+		if (fts_hd) {
+			/* Intersect: keep rows present in both sets */
+			unsigned next_hd = qmap_open(
+				NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
+			if (!next_hd) {
+				qmap_close(tmp_hd);
+				continue;
+			}
+			cur = qmap_iter(fts_hd, NULL, 0);
+			while (qmap_next(&k, &v, cur)) {
+				const char *rid = (const char *)k;
+
+				if (qmap_get(tmp_hd, rid))
+					qmap_put(next_hd, rid, "");
+			}
+			qmap_fin(cur);
+			qmap_close(fts_hd);
+			qmap_close(tmp_hd);
+			fts_hd = next_hd;
+		} else {
+			fts_hd = tmp_hd;
+		}
+
+		local_filters[fi].value = NULL;
+	}
+
+	return fts_hd;
+}
+
 /* ---- hyle_source_query ---- */
 
 int hyle_source_query(const char *source_id,
@@ -297,6 +459,7 @@ int hyle_source_query(const char *source_id,
 	hyle_field_filter_t  *local_filters = NULL;
 	hyle_query_t          local_query;
 	unsigned              pre_hd = 0;
+	unsigned              fts_hd = 0;
 
 	if (!source_id || !query || !out)
 		return -1;
@@ -325,11 +488,16 @@ int hyle_source_query(const char *source_id,
 		local_query.filters = local_filters;
 	}
 
-	/* Multi-reference pre-filter for typed-record sources */
-	pre_hd = prefilter_multi_ref(e, local_query.filters,
+	/* Full-text pre-filter first (smallest candidate set), then multi-ref */
+	fts_hd = prefilter_fts(e, local_query.filters,
 		local_query.filter_count);
 
-	input.row_hd    = pre_hd ? pre_hd : e->row_hd;
+	/* Multi-reference pre-filter for typed-record sources */
+	pre_hd = prefilter_multi_ref(e, local_query.filters,
+		local_query.filter_count,
+		fts_hd ? fts_hd : e->row_hd);
+
+	input.row_hd    = pre_hd ? pre_hd : (fts_hd ? fts_hd : e->row_hd);
 	input.fields_hd = e->fields_hd;
 	memset(out, 0, sizeof(*out));
 
@@ -338,6 +506,8 @@ int hyle_source_query(const char *source_id,
 
 	if (pre_hd)
 		qmap_close(pre_hd);
+	if (fts_hd)
+		qmap_close(fts_hd);
 	free(local_filters);
 	hyle_ctx_free(ctx);
 
@@ -610,6 +780,8 @@ static void ordered_move_key(registry_entry_t *e,
 	qmap_put(e->row_hd, new_key, "");
 	qmap_del(e->row_hd, old_key);
 	qmap_del(e->fields_hd, old_key);
+	if (e->stoma)
+		e->stoma_dirty = 1;
 }
 
 static int ordered_ensure_loaded(const char *source_id, const char *pval)

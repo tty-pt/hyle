@@ -1,9 +1,9 @@
 FOLDER := hyle
 all := libhyle hyle_test
 
-LDLIBS-libhyle := -lqmap
+LDLIBS-libhyle := -lstoma -lqmap
 libhyle-obj-y := src/ctx.o src/value.o src/query.o src/view.o src/field.o src/blueprint.o src/purify.o src/source.o
-LDLIBS-hyle_test := -lhyle -lqmap
+LDLIBS-hyle_test := -lhyle -lstoma -lqmap
 
 include ../mk/include.mk
 
@@ -25,5 +25,5 @@ zig-test:
 	cd zig-bindings && $(ZIG) build test
 
 test: all
-	LD_LIBRARY_PATH=./lib:../libqmap/lib ./bin/hyle_test${EXE}
+	LD_LIBRARY_PATH=./lib:../libqmap/lib:../stoma/lib ./bin/hyle_test${EXE}
 	$(MAKE) zig-test
