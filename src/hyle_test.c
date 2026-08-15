@@ -582,9 +582,9 @@ static void test_filter_q_and_field(void)
 	hyle_ctx_free(ctx);
 }
 
-static void test_filter_accent_folding(void)
+static void test_filter_accent_sensitive(void)
 {
-	printf("\n=== filter: accent folding ===\n");
+	printf("\n=== filter: accent sensitive ===\n");
 	hyle_ctx_t *ctx = hyle_ctx_new();
 	hyle_row_set_t input;
 
@@ -607,11 +607,13 @@ static void test_filter_accent_folding(void)
 
 	hyle_row_set_t o2 = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, NULL, f2, 1, NULL, 0, &o2);
-	CHECK_IDS(o2, "songA");
+	CHECK(qmap_count(o2.row_hd, NULL) == 0,
+	      "unaccented query matches nothing");
 
 	hyle_row_set_t o3 = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, NULL, f3, 1, NULL, 0, &o3);
-	CHECK_IDS(o3, "songB");
+	CHECK(qmap_count(o3.row_hd, NULL) == 0,
+	      "unaccented query matches nothing");
 
 	hyle_row_set_t o4 = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, NULL, f4, 1, NULL, 0, &o4);
@@ -623,7 +625,8 @@ static void test_filter_accent_folding(void)
 
 	hyle_row_set_t o6 = { make_row_hd(), 0 };
 	hyle_filter_rows(ctx, &input, "maca", NULL, 0, NULL, 0, &o6);
-	CHECK_IDS(o6, "songB");
+	CHECK(qmap_count(o6.row_hd, NULL) == 0,
+	      "unaccented search matches nothing");
 
 	qmap_close(o1.row_hd);
 	qmap_close(o2.row_hd);
@@ -1585,7 +1588,7 @@ int main(void)
 	test_filter_fulltext();
 	test_filter_fulltext_no_match();
 	test_filter_q_and_field();
-	test_filter_accent_folding();
+	test_filter_accent_sensitive();
 
 	/* Phase 2 — sort */
 	test_sort_string_asc();
