@@ -123,7 +123,7 @@
   border-radius: 4px;
   padding: 4px 8px;
   margin: 0;
-  flex: 1 1 160px;
+  flex: 1 1 100px;
   background: var(--hyle-color-surface);
   max-height: 70px;
   overflow-y: auto;
@@ -148,6 +148,28 @@
   text-transform: none;
   letter-spacing: normal;
   color: var(--hyle-color-text);
+}
+
+.hyle-filter-bar fieldset.hyle-checkbox-filter {
+  flex: 0 0 100%;
+  order: -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 4px 10px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.hyle-filter-bar .hyle-checkbox-filter legend {
+  grid-column: 1 / -1;
+}
+
+.hyle-filter-bar .hyle-checkbox-filter label {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: normal;
 }
 
 .hyle-filter-bar input,
