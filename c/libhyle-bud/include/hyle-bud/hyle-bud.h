@@ -22,6 +22,17 @@ bud_node *hyle_bud_filter_field(
 	int type,
 	const char *current_value,
 	const hyle_bud_option_t *options,
+	int noptions,
+	const char *filter_style);
+
+/* Multi-select dropdown widget (SSR-first, WASM-enhanced).
+ * filter_style "dropdown" selects it for HYLE_BUD_MULTI_REFERENCE fields. */
+void hyle_bud_ms_reset(void);
+bud_node *hyle_bud_multiselect_field(
+	const char *key,
+	const char *label,
+	const char *current_value,
+	const hyle_bud_option_t *options,
 	int noptions);
 
 bud_node *hyle_bud_table_header(

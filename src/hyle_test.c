@@ -1552,6 +1552,128 @@ static void test_fts_record(void)
 }
 
 /* ================================================================
+ * Phase 6 — multi-ref pre-filter union/intersect
+ * ================================================================ */
+
+static const hyle_field_t ms_type_fields[] = {
+	{ "id", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "name", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+};
+
+static const hyle_field_t ms_song_fields[] = {
+	{ "id", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "type", HYLE_FIELD_MULTI_REFERENCE, 1, "ms.types", NULL, 0, 0, 0,
+	  0, 0, NULL, 0 },
+	{ "tags", HYLE_FIELD_MULTI_REFERENCE, 1, "ms.types", NULL, 0, 0, 0,
+	  0, 0, NULL, 0 },
+};
+
+typedef struct {
+	char id[64];
+	char type[512];
+	char tags[512];
+} ms_song_rec_t;
+
+static const qmap_record_field_t ms_rec_fields[3] = {
+	{ "id", QM_STR, offsetof(ms_song_rec_t, id),
+	  sizeof(((ms_song_rec_t *)0)->id), 0, 0, NULL },
+	{ "type", QM_STR, offsetof(ms_song_rec_t, type),
+	  sizeof(((ms_song_rec_t *)0)->type), 0, 0, NULL },
+	{ "tags", QM_STR, offsetof(ms_song_rec_t, tags),
+	  sizeof(((ms_song_rec_t *)0)->tags), 0, 0, NULL },
+};
+
+static void ms_put_type(const char *id, const char *name)
+{
+	const char *names[1] = { "name" };
+	const char *values[1] = { name };
+
+	hyle_source_put("ms.types", id, names, values, 1);
+}
+
+static void ms_put_song(const char *id, const char *type, const char *tags)
+{
+	const char *names[2] = { "type", "tags" };
+	const char *values[2] = { type, tags };
+
+	hyle_source_put("ms.items", id, names, values, 2);
+}
+
+static void ms_query(const char *qs, hyle_row_set_t *out)
+{
+	char buf[256];
+	hyle_query_t q;
+
+	strncpy(buf, qs, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	memset(&q, 0, sizeof(q));
+	hyle_parse_query(buf, &q);
+	hyle_source_query("ms.items", &q, out, NULL);
+	hyle_query_clear(&q);
+}
+
+static void test_prefilter_multi_ref_union_intersect(void)
+{
+	hyle_row_set_t out;
+	uint32_t rec;
+
+	printf("\n=== prefilter multi-ref: union/intersect ===\n");
+	hyle_source_register("ms.types", ms_type_fields, 2, 0, 0, NULL);
+	ms_put_type("comunhao", "Comunhão");
+	ms_put_type("natal", "Natal");
+	ms_put_type("festa", "Festa");
+
+	/* ms.items must be a RECORD source: prefilter_multi_ref reads field
+	 * values via qmap_field_get, which is record-map-only. */
+	rec = qmap_record_register(
+	        "ms.rec", sizeof(ms_song_rec_t), ms_rec_fields, 3);
+	CHECK(rec != QM_MISS, "ms record layout registered");
+	hyle_source_register("ms.items", ms_song_fields, 3, rec, 0, NULL);
+	/* Plain-map target: qmap_pos finds no "comunhao" key (plain maps
+	 * store "row:field" composite keys), so prefilter_multi_ref falls
+	 * back to the raw slug — the site's shape. song1 tags = "comunhao"
+	 * keeps assertion 3 ({song1,song3}) consistent with the docs. */
+	ms_put_song("song1", "comunhao", "comunhao");
+	ms_put_song("song2", "natal", "");
+	ms_put_song("song3", "comunhao\nnatal", "comunhao");
+	ms_put_song("song4", "festa", "festa");
+
+	ms_query("type=comunhao&type=natal", &out);
+	CHECK_IDS(out, "song1", "song2", "song3");
+	hyle_row_set_free(&out);
+
+	ms_query("type=natal", &out);
+	CHECK_IDS(out, "song2", "song3");
+	hyle_row_set_free(&out);
+
+	ms_query("type=comunhao&type=natal&tags=comunhao", &out);
+	CHECK_IDS(out, "song1", "song3");
+	hyle_row_set_free(&out);
+
+	ms_query("type=festa", &out);
+	CHECK_IDS(out, "song4");
+	hyle_row_set_free(&out);
+}
+
+static void test_prefilter_multi_ref_single(void)
+{
+	hyle_row_set_t out;
+
+	printf("\n=== prefilter multi-ref: single value regression ===\n");
+	ms_query("type=comunhao", &out);
+	CHECK_IDS(out, "song1", "song3");
+	hyle_row_set_free(&out);
+
+	ms_query("type=natal", &out);
+	CHECK_IDS(out, "song2", "song3");
+	hyle_row_set_free(&out);
+
+	ms_query("tags=festa", &out);
+	CHECK_IDS(out, "song4");
+	hyle_row_set_free(&out);
+}
+
+/* ================================================================
  * Phase 3: combined main
  * ================================================================ */
 
@@ -1642,6 +1764,10 @@ int main(void)
 	/* Phase 6 — full-text index */
 	test_fts();
 	test_fts_record();
+
+	/* Phase 6 — multi-ref pre-filter union/intersect */
+	test_prefilter_multi_ref_union_intersect();
+	test_prefilter_multi_ref_single();
 
 	printf("\n-----------------------\n");
 	printf("Results: %d/%d passed", total - failures, total);

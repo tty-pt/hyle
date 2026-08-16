@@ -199,6 +199,125 @@
   box-shadow: 0 0 0 2px var(--hyle-primary-ring);
 }
 
+/* ── Multiselect dropdown filter (SSR `<details>` + checkbox panel) ── */
+
+.hyle-filter-bar .hyle-ms-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 120px;
+  min-width: 120px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--hyle-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hyle-multiselect {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.hyle-ms-trigger {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 0.6em;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 4px;
+  background: var(--hyle-color-surface);
+  font-size: 12px;
+  height: 30px;
+  box-sizing: border-box;
+}
+
+.hyle-ms-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.hyle-ms-values {
+  pointer-events: none;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hyle-ms-caret {
+  flex: none;
+  opacity: 0.7;
+}
+
+details.hyle-multiselect[open] .hyle-ms-caret {
+  transform: rotate(180deg);
+}
+
+.hyle-ms-panel {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 2px;
+  background: var(--hyle-color-surface);
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 4px;
+  box-shadow: var(--hyle-shadow-sm);
+}
+
+.hyle-filter-bar .hyle-ms-search {
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 6px 8px;
+  border: none;
+  border-bottom: 1px solid var(--hyle-color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--hyle-color-text);
+}
+
+.hyle-filter-bar .hyle-ms-search:focus {
+  outline: none;
+  border-bottom-color: var(--hyle-color-primary);
+  box-shadow: none;
+}
+
+.hyle-ms-options {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.hyle-filter-bar .hyle-ms-option {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--hyle-color-text);
+}
+
+.hyle-filter-bar .hyle-ms-option:hover {
+  background: var(--hyle-surface-hover);
+}
+
+.hyle-filter-bar .hyle-ms-option.hyle-ms-hidden {
+  display: none;
+}
+
 /* ── Filter actions ── */
 
 .hyle-filter-actions {

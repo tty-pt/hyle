@@ -214,29 +214,87 @@ void hyle_row_set_free(hyle_row_set_t *rs)
  * pre-filtering was needed (caller should use the original row_hd directly).
  * Zeroes out the filter value in local_filters for each handled filter.
  */
+#define PREFILTER_MAX_FIELDS 16
+#define PREFILTER_MAX_VALUES 32
+
+/* Intersection of two qmap sets; returns a new handle (caller closes it
+ * plus both inputs). 0 when either input is empty or alloc fails. */
+static unsigned intersect_hds(unsigned a, unsigned b)
+{
+	unsigned out_hd;
+	uint32_t cur;
+	const void *k;
+	const void *v;
+
+	if (!a || !b)
+		return 0;
+	if (qmap_count(a, NULL) > qmap_count(b, NULL)) {
+		unsigned tmp = a;
+
+		a = b;
+		b = tmp;
+	}
+	out_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
+	if (!out_hd)
+		return 0;
+	cur = qmap_iter(a, NULL, 0);
+	while (qmap_next(&k, &v, cur)) {
+		if (qmap_get(b, (const char *)k))
+			qmap_put(out_hd, (const char *)k, "");
+	}
+	qmap_fin(cur);
+	return out_hd;
+}
+
+/* True when any newline-separated token of fv equals any of vals[0..n-1]. */
+static int multi_ref_token_match(
+        const char *fv, const char *const *vals, int n)
+{
+	const char *p;
+
+	if (!fv || n <= 0)
+		return 0;
+	p = fv;
+	while (*p) {
+		const char *nl = strchr(p, '\n');
+		size_t len = nl ? (size_t)(nl - p) : strlen(p);
+		int vi;
+
+		for (vi = 0; vi < n; vi++) {
+			if (len == strlen(vals[vi]) &&
+			    strncmp(p, vals[vi], len) == 0)
+				return 1;
+		}
+		if (!nl)
+			break;
+		p = nl + 1;
+	}
+	return 0;
+}
+
 static unsigned prefilter_multi_ref(
         const registry_entry_t *e, hyle_field_filter_t *local_filters,
         unsigned filter_count, unsigned base_hd)
 {
-	unsigned fi;
+	char field_names[PREFILTER_MAX_FIELDS][64];
+	const registry_entry_t *field_target[PREFILTER_MAX_FIELDS];
+	int handled[PREFILTER_MAX_VALUES];
+	int nfields = 0;
+	int nhandled = 0;
 	unsigned pre_hd = 0;
+	unsigned fi;
 
+	/* Pass 0: collect the distinct multi-ref fields (first-appearance
+	 * order) and the index of every handled filter value. */
 	for (fi = 0; fi < filter_count; fi++) {
 		const char *fname = local_filters[fi].field;
 		const char *slug = local_filters[fi].value;
 		size_t sj;
+		int k;
 		registry_entry_t *target;
-		uint32_t pos;
-		char pos_str[32];
-		unsigned new_hd;
-		uint32_t cur;
-		const void *k;
-		const void *v;
 
 		if (!fname || !slug || !slug[0])
 			continue;
-
-		/* Find field in schema */
 		for (sj = 0; sj < e->field_count; sj++) {
 			if (strcmp(e->fields[sj].name, fname) == 0)
 				break;
@@ -245,57 +303,103 @@ static unsigned prefilter_multi_ref(
 			continue;
 		if (e->fields[sj].type != HYLE_FIELD_MULTI_REFERENCE)
 			continue;
-		if (!e->fields[sj].target_source)
-			continue;
-
-		target = find_entry(e->fields[sj].target_source);
+		target = e->fields[sj].target_source
+		                 ? find_entry(e->fields[sj].target_source)
+		                 : NULL;
 		if (!target || !target->fields_hd)
 			continue;
+		if (nfields >= PREFILTER_MAX_FIELDS ||
+		    nhandled >= PREFILTER_MAX_VALUES)
+			break;
+		for (k = 0; k < nfields; k++) {
+			if (strcmp(field_names[k], fname) == 0)
+				break;
+		}
+		if (k >= nfields) {
+			strncpy(field_names[nfields], fname,
+			        sizeof(field_names[0]) - 1);
+			field_names[nfields][sizeof(field_names[0]) - 1] = '\0';
+			field_target[nfields] = target;
+			nfields++;
+		}
+		handled[nhandled++] = (int)fi;
+	}
+	if (nhandled == 0)
+		return 0;
 
-		pos = qmap_pos(target->fields_hd, slug);
-		if (pos != UINT32_MAX)
-			snprintf(pos_str, sizeof(pos_str), "%u", pos);
-		else
-			snprintf(pos_str, sizeof(pos_str), "%s", slug);
+	/* Pass 1: per field, union every value's matching rows into one set;
+	 * intersect the sets across fields. */
+	{
+		int fk;
+		int hi;
 
-		new_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
-		if (!new_hd)
-			continue;
+		for (fk = 0; fk < nfields; fk++) {
+			char pos_vals[PREFILTER_MAX_VALUES][64];
+			const char *vals[PREFILTER_MAX_VALUES];
+			int nvals = 0;
+			unsigned set_hd;
+			uint32_t cur;
+			const void *k;
+			const void *v;
 
-		cur = qmap_iter(base_hd ? base_hd : e->row_hd, NULL, 0);
-		while (qmap_next(&k, &v, cur)) {
-			const char *rid = (const char *)k;
-			const char *fv =
-			        qmap_field_get(e->fields_hd, rid, fname);
-			const char *p;
+			for (hi = 0; hi < nhandled; hi++) {
+				const char *fname =
+				        local_filters[handled[hi]].field;
+				const char *slug =
+				        local_filters[handled[hi]].value;
+				uint32_t pos;
 
-			if (!fv)
+				if (strcmp(fname, field_names[fk]) != 0)
+					continue;
+				pos = qmap_pos(field_target[fk]->fields_hd,
+				                slug);
+				if (pos != UINT32_MAX)
+					snprintf(pos_vals[nvals],
+					         sizeof(pos_vals[nvals]), "%u",
+					         pos);
+				else
+					snprintf(pos_vals[nvals],
+					         sizeof(pos_vals[nvals]), "%s",
+					         slug);
+				vals[nvals] = pos_vals[nvals];
+				nvals++;
+			}
+
+			set_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
+			if (!set_hd)
 				continue;
-			p = fv;
-			while (*p) {
-				const char *nl = strchr(p, '\n');
-				size_t len = nl ? (size_t)(nl - p) : strlen(p);
+			cur = qmap_iter(base_hd ? base_hd : e->row_hd, NULL, 0);
+			while (qmap_next(&k, &v, cur)) {
+				const char *rid = (const char *)k;
+				const char *fv;
 
-				if (len == strlen(pos_str) &&
-				    strncmp(p, pos_str, len) == 0)
-				{
-					qmap_put(new_hd, rid, "");
-					break;
-				}
-				if (!nl)
-					break;
-				p = nl + 1;
+				fv = qmap_field_get(e->fields_hd, rid,
+				                    field_names[fk]);
+				if (multi_ref_token_match(fv, vals, nvals))
+					qmap_put(set_hd, rid, "");
+			}
+			qmap_fin(cur);
+
+			if (pre_hd) {
+				unsigned next_hd =
+				        intersect_hds(pre_hd, set_hd);
+
+				qmap_close(pre_hd);
+				qmap_close(set_hd);
+				pre_hd = next_hd;
+			} else {
+				pre_hd = set_hd;
 			}
 		}
-		qmap_fin(cur);
+	}
 
-		/* Replace previous pre_hd with the new one */
-		if (pre_hd)
-			qmap_close(pre_hd);
-		pre_hd = new_hd;
+	/* Pass 2: drop the handled values so apply_view doesn't
+	 * double-filter. */
+	{
+		int hi;
 
-		/* Clear filter so apply_view won't double-filter */
-		local_filters[fi].value = NULL;
+		for (hi = 0; hi < nhandled; hi++)
+			local_filters[handled[hi]].value = NULL;
 	}
 
 	return pre_hd;
