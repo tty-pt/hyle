@@ -35,6 +35,15 @@ bud_node *hyle_bud_multiselect_field(
 	const hyle_bud_option_t *options,
 	int noptions);
 
+/* Dropdown single-select widget (SSR-first, WASM-enhanced).
+ * filter_style "dropdown" selects it for HYLE_BUD_REFERENCE fields. */
+bud_node *hyle_bud_reference_select_dropdown(
+	const char *key,
+	const char *label,
+	const char *current_value,
+	const hyle_bud_option_t *options,
+	int noptions);
+
 bud_node *hyle_bud_table_header(
 	const char **col_keys,
 	const char **col_labels,

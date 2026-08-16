@@ -1673,6 +1673,191 @@ static void test_prefilter_multi_ref_single(void)
 	hyle_row_set_free(&out);
 }
 
+/* Tests for AND/OR _op override and field-default AND */
+
+static void ao_query(const char *qs, hyle_row_set_t *out)
+{
+	char buf[256];
+	hyle_query_t q;
+
+	strncpy(buf, qs, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	memset(&q, 0, sizeof(q));
+	hyle_parse_query(buf, &q);
+	hyle_source_query("ao.items", &q, out, NULL);
+	hyle_query_clear(&q);
+}
+
+static void ao_books_query(const char *qs, hyle_row_set_t *out)
+{
+	char buf[256];
+	hyle_query_t q;
+
+	strncpy(buf, qs, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	memset(&q, 0, sizeof(q));
+	hyle_parse_query(buf, &q);
+	hyle_source_query("ao.books", &q, out, NULL);
+	hyle_query_clear(&q);
+}
+
+static const hyle_field_t ao_song_fields[] = {
+	{ "id", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	/* combine=1 → AND default */
+	{ "type", HYLE_FIELD_MULTI_REFERENCE, 1, "ms.types", NULL, 0, 0, 0,
+	  0, 0, NULL, 0, 1 },
+};
+
+typedef struct {
+	char id[64];
+	char choir[128];
+} ao_book_rec_t;
+
+static const qmap_record_field_t ao_book_rec_fields[2] = {
+	{ "id", QM_STR, offsetof(ao_book_rec_t, id),
+	  sizeof(((ao_book_rec_t *)0)->id), 0, 0, NULL },
+	{ "choir", QM_STR, offsetof(ao_book_rec_t, choir),
+	  sizeof(((ao_book_rec_t *)0)->choir), 0, 0, NULL },
+};
+
+static const hyle_field_t ao_book_fields[] = {
+	{ "id", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "choir", HYLE_FIELD_REFERENCE, 1, "ms.types", NULL, 0, 0, 0,
+	  0, 0, NULL, 0 },
+};
+
+static void test_prefilter_multi_ref_and_override(void)
+{
+	hyle_row_set_t out;
+	hyle_query_t q;
+	char buf[256];
+
+	printf("\n=== prefilter multi-ref: and/or override ===\n");
+
+	ms_query("type=comunhao&type=natal&type_op=and", &out);
+	CHECK_IDS(out, "song3"); /* AND: only the dual-typed song */
+	hyle_row_set_free(&out);
+
+	ms_query("type=comunhao&type=natal&type_op=or", &out);
+	CHECK_IDS(out, "song1", "song2", "song3"); /* OR = union */
+	hyle_row_set_free(&out);
+
+	ms_query("type=comunhao&type=natal", &out); /* no override → field OR default */
+	CHECK_IDS(out, "song1", "song2", "song3");
+	hyle_row_set_free(&out);
+
+	/* single value is mode-independent */
+	ms_query("type=comunhao&type_op=and", &out);
+	CHECK_IDS(out, "song1", "song3");
+	hyle_row_set_free(&out);
+
+	/* parse check: op assigned to filters */
+	strncpy(buf, "type_op=and&type=a", sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	memset(&q, 0, sizeof(q));
+	hyle_parse_query(buf, &q);
+	CHECK(q.filter_count == 1, "type_op=and&type=a → 1 filter");
+	CHECK(q.filters[0].op && strcmp(q.filters[0].op, "and") == 0,
+	      "filter op=and");
+	hyle_query_clear(&q);
+
+	/* bogus op → op stays NULL */
+	strncpy(buf, "type=a&type_op=bogus", sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	memset(&q, 0, sizeof(q));
+	hyle_parse_query(buf, &q);
+	CHECK(q.filter_count == 1, "type=a&type_op=bogus → 1 filter");
+	CHECK(q.filters[0].op == NULL, "bogus op → NULL");
+	hyle_query_clear(&q);
+
+	/* lone _op with no matching filter → filter_count 0 */
+	strncpy(buf, "type_op=or", sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	memset(&q, 0, sizeof(q));
+	hyle_parse_query(buf, &q);
+	CHECK(q.filter_count == 0, "lone type_op=or → 0 filters");
+	hyle_query_clear(&q);
+}
+
+static void test_prefilter_multi_ref_field_default_and(void)
+{
+	hyle_row_set_t out;
+	uint32_t rec;
+
+	printf("\n=== prefilter multi-ref: field-default AND ===\n");
+
+	rec = qmap_record_register(
+	        "ao.rec", sizeof(ms_song_rec_t), ms_rec_fields, 3);
+	CHECK(rec != QM_MISS, "ao record layout registered");
+	hyle_source_register("ao.items", ao_song_fields, 2, rec, 0, NULL);
+
+	/* Reuse ms.items songs: need to put matching data under ao.items.
+	 * ao.items uses same record layout, same ms.types target. */
+	{
+		const char *names[1] = { "type" };
+		const char *values[1];
+
+		values[0] = "comunhao";
+		hyle_source_put("ao.items", "song1", names, values, 1);
+		values[0] = "natal";
+		hyle_source_put("ao.items", "song2", names, values, 1);
+		values[0] = "comunhao\nnatal";
+		hyle_source_put("ao.items", "song3", names, values, 1);
+		values[0] = "festa";
+		hyle_source_put("ao.items", "song4", names, values, 1);
+	}
+
+	/* AND by field default — no _op */
+	ao_query("type=comunhao&type=natal", &out);
+	CHECK_IDS(out, "song3");
+	hyle_row_set_free(&out);
+
+	/* OR override defeats field default */
+	ao_query("type=comunhao&type=natal&type_op=or", &out);
+	CHECK_IDS(out, "song1", "song2", "song3");
+	hyle_row_set_free(&out);
+}
+
+static void test_prefilter_ref_multi_value(void)
+{
+	hyle_row_set_t out;
+	uint32_t rec;
+
+	printf("\n=== prefilter single-REFERENCE multi-value ===\n");
+
+	rec = qmap_record_register(
+	        "ao.book_rec", sizeof(ao_book_rec_t), ao_book_rec_fields, 2);
+	CHECK(rec != QM_MISS, "ao.book_rec registered");
+	hyle_source_register("ao.books", ao_book_fields, 2, rec, 0, NULL);
+
+	{
+		const char *names[1] = { "choir" };
+		const char *values[1];
+
+		values[0] = "comunhao";
+		hyle_source_put("ao.books", "b1", names, values, 1);
+		values[0] = "natal";
+		hyle_source_put("ao.books", "b2", names, values, 1);
+		values[0] = "comunhao";
+		hyle_source_put("ao.books", "b3", names, values, 1);
+	}
+
+	/* OR union: b1,b2,b3 */
+	ao_books_query("choir=comunhao&choir=natal", &out);
+	CHECK_IDS(out, "b1", "b2", "b3");
+	hyle_row_set_free(&out);
+
+	/* AND degenerate: choir can't be both → empty */
+	ao_books_query("choir=comunhao&choir=natal&choir_op=and", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0, "AND degenerate REFERENCE → empty");
+	hyle_row_set_free(&out);
+
+	/* Single value → residual ci_substr path */
+	ao_books_query("choir=comunhao", &out);
+	CHECK_IDS(out, "b1", "b3");
+	hyle_row_set_free(&out);
+}
+
 /* ================================================================
  * Phase 3: combined main
  * ================================================================ */
@@ -1768,6 +1953,9 @@ int main(void)
 	/* Phase 6 — multi-ref pre-filter union/intersect */
 	test_prefilter_multi_ref_union_intersect();
 	test_prefilter_multi_ref_single();
+	test_prefilter_multi_ref_and_override();
+	test_prefilter_multi_ref_field_default_and();
+	test_prefilter_ref_multi_value();
 
 	printf("\n-----------------------\n");
 	printf("Results: %d/%d passed", total - failures, total);

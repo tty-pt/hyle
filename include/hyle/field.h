@@ -27,6 +27,7 @@ typedef struct {
 	size_t max_length;
 	const char *pattern;
 	int searchable;
+	int combine; /* 0 = OR (default), 1 = AND within-field */
 } hyle_field_t;
 
 const hyle_field_t *hyle_field_by_name(

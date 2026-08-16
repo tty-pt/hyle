@@ -88,6 +88,11 @@ int hyle_parse_query(char *query_str, hyle_query_t *out)
 	out->filter_count = 0;
 	out->include_count = 0;
 
+	/* Collect _op overrides before dispatching filters */
+	char op_field[64][64];
+	const char *op_val[64];
+	int n_ops = 0;
+
 	for (int i = 0; i < n; i++) {
 		char *name = names[i];
 		char *value = values[i];
@@ -96,6 +101,26 @@ int hyle_parse_query(char *query_str, hyle_query_t *out)
 			continue;
 
 		url_decode(value);
+
+		/* Intercept <field>_op — always consumed (never a filter).
+		 * Only valid values ("and"/"or") are recorded as overrides. */
+		{
+			size_t nlen = strlen(name);
+			if (nlen > 3 && strcmp(name + nlen - 3, "_op") == 0) {
+				if ((strcmp(value, "and") == 0 ||
+				     strcmp(value, "or") == 0) &&
+				    n_ops < 64) {
+					size_t flen = nlen - 3;
+					if (flen >= 64)
+						flen = 63;
+					memcpy(op_field[n_ops], name, flen);
+					op_field[n_ops][flen] = '\0';
+					op_val[n_ops] = value;
+					n_ops++;
+				}
+				continue; /* NOT a filter regardless of value */
+			}
+		}
 
 		if (strcmp(name, "sort") == 0) {
 			char *colon = strchr(value, ':');
@@ -142,7 +167,16 @@ int hyle_parse_query(char *query_str, hyle_query_t *out)
 			out->filters = tmp;
 			out->filters[out->filter_count].field = name;
 			out->filters[out->filter_count].value = value;
+			out->filters[out->filter_count].op = NULL;
 			out->filter_count++;
+		}
+	}
+
+	/* Apply _op overrides to matching filters (last-wins, order-independent) */
+	for (unsigned i = 0; i < out->filter_count; i++) {
+		for (int j = 0; j < n_ops; j++) {
+			if (strcmp(out->filters[i].field, op_field[j]) == 0)
+				out->filters[i].op = op_val[j];
 		}
 	}
 

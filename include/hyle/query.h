@@ -10,6 +10,7 @@
 typedef struct {
 	const char *field;
 	const char *value;
+	const char *op; /* NULL, "and", or "or" — from <field>_op URL param */
 } hyle_field_filter_t;
 
 typedef struct {

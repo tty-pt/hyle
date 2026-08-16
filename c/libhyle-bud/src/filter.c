@@ -123,9 +123,30 @@ typedef struct {
 static hyle_bud_ms_t g_ms[HYLE_BUD_MS_MAX];
 static int g_ms_count = 0;
 
+/* ── Single-select dropdown widget registry ───────────────────── */
+
+#define HYLE_BUD_SS_MAX 8
+
+typedef struct {
+	const char *key;
+	const char *label;
+	bud_node *search;
+	bud_node *summary_values;
+	bud_node *options_container;
+	hyle_bud_option_t opts_copy[HYLE_BUD_MS_MAX_OPTS];
+	const hyle_bud_option_t *opts;
+	int noptions;
+	bud_node *option_rows[HYLE_BUD_MS_MAX_OPTS];
+	bud_node *radios[HYLE_BUD_MS_MAX_OPTS];
+} hyle_bud_ss_t;
+
+static hyle_bud_ss_t g_ss[HYLE_BUD_SS_MAX];
+static int g_ss_count = 0;
+
 void hyle_bud_ms_reset(void)
 {
 	g_ms_count = 0;
+	g_ss_count = 0;
 }
 
 static const char *ms_ci_substr(const char *haystack, const char *needle)
@@ -381,6 +402,177 @@ static bud_node *hyle_bud_reference_select(
 		lx_node(select)).data.node;
 }
 
+/* ── Dropdown single-select widget (SSR-first, WASM-enhanced) ─── */
+
+static int hyle_bud_ss_find_widget(bud_node *target)
+{
+	int i;
+
+	if (!target)
+		return -1;
+	for (i = 0; i < g_ss_count; i++) {
+		int j;
+		if (g_ss[i].search == target)
+			return i;
+		for (j = 0; j < g_ss[i].noptions; j++) {
+			if (g_ss[i].radios[j] == target)
+				return i;
+		}
+	}
+	return -1;
+}
+
+static int hyle_bud_ss_on_search(bud_event *event)
+{
+	int w = hyle_bud_ss_find_widget(event->target);
+	const char *needle;
+	int i;
+
+	if (w < 0)
+		return 0;
+	needle = (const char *)event->user;
+	if (!needle)
+		needle = "";
+	for (i = 0; i < g_ss[w].noptions; i++) {
+		int visible =
+		        ms_ci_substr(g_ss[w].opts[i].label, needle) != NULL;
+		bud_patch_attr(g_ss[w].option_rows[i], "class",
+		               visible ? "hyle-ss-option"
+		                       : "hyle-ss-option hyle-ss-hidden");
+	}
+	return 0;
+}
+
+static int hyle_bud_ss_on_change(bud_event *event)
+{
+	int w = hyle_bud_ss_find_widget(event->target);
+	int k;
+
+	if (w < 0)
+		return 0;
+	for (k = 0; k < g_ss[w].noptions; k++) {
+		if (g_ss[w].radios[k] == event->target)
+			break;
+	}
+	if (k < g_ss[w].noptions)
+		bud_patch_text(g_ss[w].summary_values,
+		               g_ss[w].opts[k].label);
+	return 0;
+}
+
+bud_node *hyle_bud_reference_select_dropdown(
+	const char *key,
+	const char *label,
+	const char *current_value,
+	const hyle_bud_option_t *options,
+	int noptions)
+{
+	hyle_bud_ss_t *w;
+	bud_node *summary_text_node;
+	bud_node *summary;
+	bud_node *search;
+	bud_node *container;
+	bud_node *caption;
+	const char *current_label = NULL;
+	char summary_text[4096];
+	int i;
+
+	if (g_ss_count >= HYLE_BUD_SS_MAX)
+		return hyle_bud_reference_select(key, label, current_value,
+		                                 options, noptions);
+
+	w = &g_ss[g_ss_count];
+	g_ss_count++;
+
+	w->key = key;
+	w->label = label;
+	w->opts = w->opts_copy;
+	w->noptions =
+	        noptions > HYLE_BUD_MS_MAX_OPTS ? HYLE_BUD_MS_MAX_OPTS
+	                                        : noptions;
+
+	for (i = 0; i < w->noptions; i++) {
+		w->opts_copy[i].id = options[i].id;
+		w->opts_copy[i].label = options[i].label;
+		w->option_rows[i] = NULL;
+		w->radios[i] = NULL;
+		if (current_value &&
+		    strcmp(current_value, options[i].id) == 0)
+			current_label = options[i].label;
+	}
+
+	if (current_label)
+		snprintf(summary_text, sizeof(summary_text), "%s",
+		         current_label);
+	else
+		snprintf(summary_text, sizeof(summary_text), "All %ss", label);
+
+	summary_text_node = bud_text(summary_text);
+	summary = lx_el("span",
+		lx_attr("class", "hyle-ss-values"),
+		lx_attr("data-hyle-ss-values", "1"),
+		lx_node(summary_text_node)).data.node;
+	w->summary_values = summary_text_node;
+
+	caption = lx_el("span",
+		lx_attr("class", "hyle-ss-caption"),
+		lx_text(label)).data.node;
+
+	container = lx_el("div",
+		lx_attr("class", "hyle-ss-options"),
+		lx_attr("data-hyle-ss-options", "1")).data.node;
+	w->options_container = container;
+
+	for (i = 0; i < w->noptions; i++) {
+		int sel =
+		        current_value &&
+		        strcmp(current_value, w->opts[i].id) == 0;
+		bud_node *radio = lx_el("input",
+			lx_attr("type", "radio"),
+			lx_attr("name", key),
+			lx_attr("value", w->opts[i].id),
+			sel ? lx_attr("checked", "") : lx_none(),
+			lx_bind("change", 0,
+			        hyle_bud_ss_on_change)).data.node;
+		bud_node *row = lx_el("label",
+			lx_attr("class", "hyle-ss-option"),
+			lx_node(radio),
+			lx_text(w->opts[i].label)).data.node;
+		w->radios[i] = radio;
+		w->option_rows[i] = row;
+		bud_append(container, row);
+	}
+
+	search = lx_el("input",
+		lx_attr("type", "search"),
+		lx_attr("class", "hyle-ss-search"),
+		lx_attr("data-hyle-ss-search", "1"),
+		lx_attr("placeholder", "Search\xe2\x80\xa6"),
+		lx_attr("aria-label", "Search options"),
+		lx_bind("input", 0, hyle_bud_ss_on_search)).data.node;
+	w->search = search;
+
+	return lx_el("div",
+		lx_attr("class", "hyle-ss-field"),
+		lx_node(caption),
+		lx_el("details",
+			lx_attr("class", "hyle-singleselect"),
+			lx_attr("data-hyle-ss", key),
+			lx_attr("data-hyle-ss-label", label),
+			lx_el("summary",
+			        lx_attr("class", "hyle-ss-trigger"),
+			        lx_node(summary),
+			        lx_el("span",
+			               lx_attr("class", "hyle-ss-caret"),
+			               lx_attr("aria-hidden", "true"),
+			               lx_text("\xe2\x96\xbe"))),
+			lx_el("div",
+			        lx_attr("class", "hyle-ss-panel"),
+			        lx_attr("data-hyle-ss-panel", "1"),
+			        lx_node(search),
+			        lx_node(container)))).data.node;
+}
+
 static bud_node *hyle_bud_text_input(
 	const char *key,
 	const char *label,
@@ -422,9 +614,25 @@ bud_node *hyle_bud_filter_field(
 		}
 		return hyle_bud_text_input(key, label, current_value);
 	case HYLE_BUD_REFERENCE:
-		if (options && noptions > 0)
+		if (options && noptions > 0) {
+			if (filter_style &&
+			    strcmp(filter_style, "dropdown") == 0)
+				return hyle_bud_reference_select_dropdown(
+				        key, label, current_value, options,
+				        noptions);
+			if (filter_style &&
+			    strcmp(filter_style, "multiselect") == 0)
+				return hyle_bud_multiselect_field(
+				        key, label, current_value, options,
+				        noptions);
+			if (filter_style && strcmp(filter_style, "grid") == 0)
+				return hyle_bud_checkbox_fieldset(
+				        key, label, current_value, options,
+				        noptions);
+			/* "select" (explicit) or absent → native <select> */
 			return hyle_bud_reference_select(
 			        key, label, current_value, options, noptions);
+		}
 		return hyle_bud_text_input(key, label, current_value);
 	default:
 		return hyle_bud_text_input(key, label, current_value);

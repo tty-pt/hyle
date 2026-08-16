@@ -210,6 +210,14 @@ void hyle_row_set_free(hyle_row_set_t *rs)
  * slug → position and pre-filter the row set so that apply_view sees
  * plain row IDs without the reference filter.
  *
+ * Also handles single REFERENCE fields when ≥2 distinct values are
+ * requested; single-value REFERENCE falls through to the residual
+ * ci_substr path (byte-identical behaviour).
+ *
+ * Within-field combination is configurable: OR (union, default) or AND
+ * (intersect), determined by the URL <field>_op override or the field's
+ * combine flag. Cross-field combination is always AND.
+ *
  * Returns a newly-opened pre-filtered row_hd (caller must close), or 0 if no
  * pre-filtering was needed (caller should use the original row_hd directly).
  * Zeroes out the filter value in local_filters for each handled filter.
@@ -272,26 +280,80 @@ static int multi_ref_token_match(
 	return 0;
 }
 
+/* True when every value in vals[0..n-1] appears as a newline-separated
+ * token of fv. AND-within-field counterpart of multi_ref_token_match. */
+static int multi_ref_all_tokens_match(
+        const char *fv, const char *const *vals, int n)
+{
+	int vi;
+
+	if (!fv || n <= 0)
+		return 0;
+	for (vi = 0; vi < n; vi++) {
+		const char *p = fv;
+		int found = 0;
+
+		while (*p) {
+			const char *nl = strchr(p, '\n');
+			size_t len = nl ? (size_t)(nl - p) : strlen(p);
+
+			if (len == strlen(vals[vi]) &&
+			    strncmp(p, vals[vi], len) == 0) {
+				found = 1;
+				break;
+			}
+			if (!nl)
+				break;
+			p = nl + 1;
+		}
+		if (!found)
+			return 0;
+	}
+	return 1;
+}
+
+/* True when fv exactly equals any of vals[0..n-1]. Single REFERENCE
+ * fields store one slug per row. */
+static int ref_value_matches(
+        const char *fv, const char *const *vals, int n)
+{
+	int vi;
+
+	if (!fv || n <= 0)
+		return 0;
+	for (vi = 0; vi < n; vi++) {
+		if (strcmp(fv, vals[vi]) == 0)
+			return 1;
+	}
+	return 0;
+}
+
 static unsigned prefilter_multi_ref(
         const registry_entry_t *e, hyle_field_filter_t *local_filters,
         unsigned filter_count, unsigned base_hd)
 {
 	char field_names[PREFILTER_MAX_FIELDS][64];
 	const registry_entry_t *field_target[PREFILTER_MAX_FIELDS];
+	int field_type[PREFILTER_MAX_FIELDS];
+	int field_sj[PREFILTER_MAX_FIELDS]; /* index into e->fields for combine */
+	int ref_hd[PREFILTER_MAX_FIELDS][PREFILTER_MAX_VALUES];
+	int ref_hd_count[PREFILTER_MAX_FIELDS];
 	int handled[PREFILTER_MAX_VALUES];
 	int nfields = 0;
 	int nhandled = 0;
 	unsigned pre_hd = 0;
 	unsigned fi;
 
-	/* Pass 0: collect the distinct multi-ref fields (first-appearance
-	 * order) and the index of every handled filter value. */
+	for (fi = 0; fi < PREFILTER_MAX_FIELDS; fi++)
+		ref_hd_count[fi] = 0;
+
+	/* Pass 0: collect distinct reference fields and handled filter indexes. */
 	for (fi = 0; fi < filter_count; fi++) {
 		const char *fname = local_filters[fi].field;
 		const char *slug = local_filters[fi].value;
 		size_t sj;
 		int k;
-		registry_entry_t *target;
+		registry_entry_t *target = NULL;
 
 		if (!fname || !slug || !slug[0])
 			continue;
@@ -301,13 +363,17 @@ static unsigned prefilter_multi_ref(
 		}
 		if (sj >= e->field_count)
 			continue;
-		if (e->fields[sj].type != HYLE_FIELD_MULTI_REFERENCE)
+		if (e->fields[sj].type != HYLE_FIELD_MULTI_REFERENCE &&
+		    e->fields[sj].type != HYLE_FIELD_REFERENCE)
 			continue;
-		target = e->fields[sj].target_source
-		                 ? find_entry(e->fields[sj].target_source)
-		                 : NULL;
-		if (!target || !target->fields_hd)
-			continue;
+		/* MULTI_REFERENCE needs target for qmap_pos slug→pos resolution */
+		if (e->fields[sj].type == HYLE_FIELD_MULTI_REFERENCE) {
+			target = e->fields[sj].target_source
+			                 ? find_entry(e->fields[sj].target_source)
+			                 : NULL;
+			if (!target || !target->fields_hd)
+				continue;
+		}
 		if (nfields >= PREFILTER_MAX_FIELDS ||
 		    nhandled >= PREFILTER_MAX_VALUES)
 			break;
@@ -320,62 +386,156 @@ static unsigned prefilter_multi_ref(
 			        sizeof(field_names[0]) - 1);
 			field_names[nfields][sizeof(field_names[0]) - 1] = '\0';
 			field_target[nfields] = target;
+			field_type[nfields] = (int)e->fields[sj].type;
+			field_sj[nfields] = (int)sj;
+			ref_hd_count[nfields] = 0;
 			nfields++;
 		}
 		handled[nhandled++] = (int)fi;
+		/* Track REFERENCE filter indexes per field for distinct-value count */
+		if (e->fields[sj].type == HYLE_FIELD_REFERENCE &&
+		    ref_hd_count[k] < PREFILTER_MAX_VALUES)
+			ref_hd[k][ref_hd_count[k]++] = (int)fi;
 	}
 	if (nhandled == 0)
 		return 0;
 
-	/* Pass 1: per field, union every value's matching rows into one set;
-	 * intersect the sets across fields. */
+	/* Prune REFERENCE fields with <2 distinct values — keep them on the
+	 * residual ci_substr path so single-value behaviour is byte-identical. */
+	{
+		int fk2;
+
+		for (fk2 = 0; fk2 < nfields; fk2++) {
+			const char *distinct[PREFILTER_MAX_VALUES];
+			int nd = 0;
+			int hi;
+
+			if (field_type[fk2] != HYLE_FIELD_REFERENCE)
+				continue;
+			for (hi = 0; hi < ref_hd_count[fk2]; hi++) {
+				const char *v =
+				        local_filters[ref_hd[fk2][hi]].value;
+				int d;
+
+				if (!v)
+					continue;
+				for (d = 0; d < nd; d++)
+					if (strcmp(distinct[d], v) == 0)
+						break;
+				if (d >= nd && nd < PREFILTER_MAX_VALUES)
+					distinct[nd++] = v;
+			}
+			if (nd < 2) {
+				int h2;
+
+				for (h2 = 0; h2 < ref_hd_count[fk2]; h2++) {
+					int drop = ref_hd[fk2][h2];
+					int h3;
+
+					for (h3 = 0; h3 < nhandled; h3++) {
+						if (handled[h3] == drop) {
+							handled[h3] =
+							        handled[nhandled -
+							                1];
+							nhandled--;
+							break;
+						}
+					}
+				}
+			}
+		}
+	}
+	if (nhandled == 0)
+		return 0;
+
+	/* Pass 1: per field, union (OR) or intersect (AND) every value's
+	 * matching rows into one set; intersect the sets across fields. */
 	{
 		int fk;
-		int hi;
 
 		for (fk = 0; fk < nfields; fk++) {
 			char pos_vals[PREFILTER_MAX_VALUES][64];
 			const char *vals[PREFILTER_MAX_VALUES];
 			int nvals = 0;
+			const char *override_op = NULL;
+			int mode;
 			unsigned set_hd;
 			uint32_t cur;
 			const void *k;
 			const void *v;
+			int hi;
 
 			for (hi = 0; hi < nhandled; hi++) {
 				const char *fname =
 				        local_filters[handled[hi]].field;
 				const char *slug =
 				        local_filters[handled[hi]].value;
-				uint32_t pos;
 
 				if (strcmp(fname, field_names[fk]) != 0)
 					continue;
-				pos = qmap_pos(field_target[fk]->fields_hd,
-				                slug);
-				if (pos != UINT32_MAX)
-					snprintf(pos_vals[nvals],
-					         sizeof(pos_vals[nvals]), "%u",
-					         pos);
-				else
-					snprintf(pos_vals[nvals],
-					         sizeof(pos_vals[nvals]), "%s",
-					         slug);
-				vals[nvals] = pos_vals[nvals];
+				/* Collect override_op from any filter's op */
+				if (local_filters[handled[hi]].op &&
+				    !override_op)
+					override_op =
+					        local_filters[handled[hi]].op;
+
+				if (field_type[fk] ==
+				    HYLE_FIELD_MULTI_REFERENCE) {
+					uint32_t pos = qmap_pos(
+					        field_target[fk]->fields_hd,
+					        slug);
+
+					if (pos != UINT32_MAX)
+						snprintf(pos_vals[nvals],
+						         sizeof(pos_vals[nvals]),
+						         "%u", pos);
+					else
+						snprintf(pos_vals[nvals],
+						         sizeof(pos_vals[nvals]),
+						         "%s", slug);
+					vals[nvals] = pos_vals[nvals];
+				} else {
+					/* REFERENCE: raw slug, no pos lookup */
+					vals[nvals] = slug;
+				}
 				nvals++;
 			}
 
-			set_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
+			if (nvals == 0)
+				continue;
+
+			mode = override_op
+			               ? (strcmp(override_op, "and") == 0)
+			               : e->fields[field_sj[fk]].combine;
+
+			set_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF,
+			                   0);
 			if (!set_hd)
 				continue;
-			cur = qmap_iter(base_hd ? base_hd : e->row_hd, NULL, 0);
+			cur = qmap_iter(base_hd ? base_hd : e->row_hd, NULL,
+			                0);
 			while (qmap_next(&k, &v, cur)) {
 				const char *rid = (const char *)k;
 				const char *fv;
+				int m;
 
 				fv = qmap_field_get(e->fields_hd, rid,
 				                    field_names[fk]);
-				if (multi_ref_token_match(fv, vals, nvals))
+				if (field_type[fk] == HYLE_FIELD_REFERENCE) {
+					/* AND on a single-valued field: a value
+					 * can't equal ≥2 distinct slugs →
+					 * always empty (correct degenerate). */
+					m = mode ? 0
+					         : ref_value_matches(fv, vals,
+					                             nvals);
+				} else if (mode) {
+					m = multi_ref_all_tokens_match(fv, vals,
+					                               nvals);
+				} else {
+					m = multi_ref_token_match(fv, vals,
+					                          nvals);
+				}
+				if (m)
 					qmap_put(set_hd, rid, "");
 			}
 			qmap_fin(cur);
