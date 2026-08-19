@@ -158,7 +158,7 @@ int hyle_parse_query(char *query_str, hyle_query_t *out)
 				else
 					break;
 			}
-		} else {
+		} else if (value[0] != '\0') {
 			hyle_field_filter_t *tmp = (hyle_field_filter_t *)realloc(
 				(void *)out->filters,
 				(out->filter_count + 1) * sizeof(hyle_field_filter_t));

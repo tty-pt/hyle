@@ -468,6 +468,25 @@ static void test_parse_unknown_becomes_filter(void)
 	hyle_query_clear(&q);
 }
 
+static void test_parse_empty_value_dropped(void)
+{
+	printf("\n=== parse: empty value filter dropped ===\n");
+	char buf[] = "title=&author=Alice";
+	hyle_query_t q;
+	hyle_parse_query(buf, &q);
+	CHECK(q.filter_count == 1, "empty title dropped, 1 filter remains");
+	CHECK(strcmp(q.filters[0].field, "author") == 0,
+	      "remaining filter is author");
+	CHECK(strcmp(q.filters[0].value, "Alice") == 0,
+	      "remaining value is Alice");
+	hyle_query_clear(&q);
+
+	char buf2[] = "title=&author=&data=";
+	hyle_parse_query(buf2, &q);
+	CHECK(q.filter_count == 0, "all empty filters dropped");
+	hyle_query_clear(&q);
+}
+
 /* ================================================================
  * Phase 2: hyle_filter_rows tests
  * ================================================================ */
@@ -1887,6 +1906,7 @@ int main(void)
 	test_parse_multiple_filters();
 	test_parse_all_params();
 	test_parse_unknown_becomes_filter();
+	test_parse_empty_value_dropped();
 
 	/* Phase 2 — filter */
 	test_filter_single_match();
