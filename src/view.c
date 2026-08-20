@@ -76,6 +76,11 @@ static int ci_substr(const char *str, const char *sub)
 	return 0;
 }
 
+int hyle_ci_substr(const char *str, const char *sub)
+{
+	return ci_substr(str, sub);
+}
+
 /* ---- multi-ref token match ---- */
 
 /*

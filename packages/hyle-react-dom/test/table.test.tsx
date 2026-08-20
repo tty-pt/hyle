@@ -225,11 +225,68 @@ describe("HyleTableBody", () => {
 
   it("renders filter inputs per column when filters provided", () => {
     render(
-      createElement(HyleTableFilterBar, { filters: makeFilters() }),
+      createElement(HyleTableFilterBar, {
+        filters: makeFilters(),
+        custom: true,
+      }),
       { wrapper: wrap(client) },
     );
     expect(screen.getByTestId("filter-name")).toBeTruthy();
     expect(screen.getByTestId("filter-active")).toBeTruthy();
+    expect(document.querySelector("[data-hyle-omnisearch]")).toBeNull();
+    const customBar = document.querySelector("[data-hyle-mode]");
+    expect(customBar?.getAttribute("data-hyle-mode")).toBe("custom");
+    const customToggle = document.querySelector("[data-hyle-mode-toggle]");
+    expect(customToggle?.getAttribute("data-hyle-mode-toggle")).toBe("omni");
+    expect(customToggle?.getAttribute("href")).toBe("?");
+    expect(document.querySelector("input[name='custom']")).toBeTruthy();
+  });
+
+  it("defaults to omni mode", () => {
+    render(
+      createElement(HyleTableFilterBar, { filters: makeFilters() }),
+      { wrapper: wrap(client) },
+    );
+    expect(document.querySelector("[data-hyle-omnisearch]")).toBeTruthy();
+    expect(screen.queryByTestId("filter-name")).toBeNull();
+    const bar = document.querySelector("[data-hyle-mode]");
+    expect(bar?.getAttribute("data-hyle-mode")).toBe("omni");
+  });
+
+  it("renders omnisearch instead of field inputs in omni mode", () => {
+    render(
+      createElement(HyleTableFilterBar, {
+        filters: makeFilters(),
+        custom: false,
+        q: "Natal",
+      }),
+      { wrapper: wrap(client) },
+    );
+    expect(screen.queryByTestId("filter-name")).toBeNull();
+    expect(screen.queryByTestId("filter-active")).toBeNull();
+    const omni = document.querySelector("[data-hyle-omnisearch] input[name='q']") as HTMLInputElement | null;
+    expect(omni).toBeTruthy();
+    expect(omni?.defaultValue).toBe("Natal");
+    const bar = document.querySelector("[data-hyle-mode]");
+    expect(bar?.getAttribute("data-hyle-mode")).toBe("omni");
+    const toggle = document.querySelector("[data-hyle-mode-toggle]");
+    expect(toggle?.getAttribute("data-hyle-mode-toggle")).toBe("custom");
+    expect(toggle?.getAttribute("href")).toBe("?custom=1");
+    expect(document.querySelector("input[name='custom']")).toBeNull();
+    expect(document.querySelector("input[name='mode']")).toBeNull();
+  });
+
+  it("uses toggleHref when provided", () => {
+    render(
+      createElement(HyleTableFilterBar, {
+        filters: makeFilters(),
+        custom: true,
+        toggleHref: "?sort=title:desc",
+      }),
+      { wrapper: wrap(client) },
+    );
+    const toggle = document.querySelector("[data-hyle-mode-toggle]");
+    expect(toggle?.getAttribute("href")).toBe("?sort=title:desc");
   });
 
   it("calls onRowClick with the correct row", () => {

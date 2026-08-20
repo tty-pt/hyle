@@ -399,6 +399,39 @@ static void test_parse_q(void)
 	hyle_query_clear(&q);
 }
 
+static void test_parse_mode(void)
+{
+	char buf1[] = "custom=1&q=love&author=Alice";
+	char buf2[] = "custom=&q=test";
+	char buf3[] = "search_mode=omni&q=love";
+	char buf4[] = "mode=omni&q=love";
+	hyle_query_t q1;
+	hyle_query_t q2;
+	hyle_query_t q3;
+	hyle_query_t q4;
+
+	printf("\n=== parse: custom ===\n");
+	hyle_parse_query(buf1, &q1);
+	CHECK(q1.q != NULL, "q preserved");
+	CHECK(strcmp(q1.q, "love") == 0, "q == love");
+	CHECK(q1.filter_count == 1, "1 filter");
+	CHECK(strcmp(q1.filters[0].field, "author") == 0,
+	      "filter field author");
+	hyle_query_clear(&q1);
+
+	hyle_parse_query(buf2, &q2);
+	CHECK(q2.filter_count == 0, "empty custom not a filter");
+	hyle_query_clear(&q2);
+
+	hyle_parse_query(buf3, &q3);
+	CHECK(q3.filter_count == 0, "legacy search_mode not a filter");
+	hyle_query_clear(&q3);
+
+	hyle_parse_query(buf4, &q4);
+	CHECK(q4.filter_count == 0, "legacy mode not a filter");
+	hyle_query_clear(&q4);
+}
+
 static void test_parse_include(void)
 {
 	printf("\n=== parse: include ===\n");
@@ -1878,6 +1911,108 @@ static void test_prefilter_ref_multi_value(void)
 }
 
 /* ================================================================
+ * omnisearch: q matches stored values + resolved ref labels
+ * ================================================================ */
+
+static const hyle_field_t omni_type_fields[] = {
+	{ "id", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "name", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+};
+
+static const hyle_field_t omni_item_fields[] = {
+	{ "id", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "title", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "author", HYLE_FIELD_STRING, 1, NULL, NULL, 0, 0, 0, 0, 0, NULL, 0 },
+	{ "type", HYLE_FIELD_REFERENCE, 1, "omni.types", NULL, 0, 0, 0, 0, 0,
+	  NULL, 0 },
+};
+
+static void omni_put_type(const char *id, const char *name)
+{
+	const char *names[1] = { "name" };
+	const char *values[1] = { name };
+
+	hyle_source_put("omni.types", id, names, values, 1);
+}
+
+static void omni_put_item(
+        const char *id, const char *title, const char *author,
+        const char *type)
+{
+	const char *names[3] = { "title", "author", "type" };
+	const char *values[3];
+
+	values[0] = title;
+	values[1] = author;
+	values[2] = type;
+	hyle_source_put("omni.items", id, names, values, 3);
+}
+
+static void omni_query(const char *qs, hyle_row_set_t *out)
+{
+	char buf[256];
+	hyle_query_t q;
+
+	strncpy(buf, qs, sizeof(buf) - 1);
+	buf[sizeof(buf) - 1] = '\0';
+	memset(&q, 0, sizeof(q));
+	hyle_parse_query(buf, &q);
+	hyle_source_query("omni.items", &q, out, NULL);
+	hyle_query_clear(&q);
+}
+
+static void test_prefilter_q_labels(void)
+{
+	hyle_row_set_t out;
+
+	printf("\n=== prefilter q: stored values + ref labels ===\n");
+	hyle_source_register("omni.types", omni_type_fields, 2, 0, 0, NULL);
+	omni_put_type("saida", "Saída");
+	omni_put_type("natal", "Natal");
+
+	hyle_source_register("omni.items", omni_item_fields, 4, 0, 0, NULL);
+	omni_put_item("a", "Coração Adorador", "X", "natal");
+	omni_put_item("b", "Hello", "Joaquim", "");
+	omni_put_item("c", "ZZZ", "Y", "saida");
+
+	omni_query("q=Coração", &out);
+	CHECK_IDS(out, "a");
+	hyle_row_set_free(&out);
+
+	omni_query("q=coracao", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0, "q=coracao empty");
+	hyle_row_set_free(&out);
+
+	omni_query("q=Joaq", &out);
+	CHECK_IDS(out, "b");
+	hyle_row_set_free(&out);
+
+	omni_query("q=Saída", &out);
+	CHECK_IDS(out, "c");
+	hyle_row_set_free(&out);
+
+	omni_query("q=saida", &out);
+	CHECK_IDS(out, "c");
+	hyle_row_set_free(&out);
+
+	omni_query("q=Natal", &out);
+	CHECK_IDS(out, "a");
+	hyle_row_set_free(&out);
+
+	omni_query("q=", &out);
+	CHECK_IDS(out, "a", "b", "c");
+	hyle_row_set_free(&out);
+
+	omni_query("", &out);
+	CHECK_IDS(out, "a", "b", "c");
+	hyle_row_set_free(&out);
+
+	omni_query("q=xyz", &out);
+	CHECK(qmap_count(out.row_hd, NULL) == 0, "q=xyz empty");
+	hyle_row_set_free(&out);
+}
+
+/* ================================================================
  * Phase 3: combined main
  * ================================================================ */
 
@@ -1901,6 +2036,7 @@ int main(void)
 	test_parse_sort();
 	test_parse_pagination();
 	test_parse_q();
+	test_parse_mode();
 	test_parse_include();
 	test_parse_field_filter();
 	test_parse_multiple_filters();
@@ -1976,6 +2112,7 @@ int main(void)
 	test_prefilter_multi_ref_and_override();
 	test_prefilter_multi_ref_field_default_and();
 	test_prefilter_ref_multi_value();
+	test_prefilter_q_labels();
 
 	printf("\n-----------------------\n");
 	printf("Results: %d/%d passed", total - failures, total);

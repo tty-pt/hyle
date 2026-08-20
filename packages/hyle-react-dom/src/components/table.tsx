@@ -162,29 +162,61 @@ export function HyleTableFilterBar({
   filters,
   only,
   children,
+  custom = false,
+  q,
+  toggleHref,
 }: {
   filters: HyleFiltersState;
   only?: string[];
   children?: ReactNode;
+  custom?: boolean;
+  q?: string;
+  toggleHref?: string;
 }) {
   const visible = only
     ? filters.fields.filter((f) => only.includes(f.key))
     : filters.fields;
+  const other = custom ? "omni" : "custom";
+  const href = toggleHref ?? (custom ? "?" : "?custom=1");
+  const toggleIcon = custom ? "\u2315" : "\u2699";
+  const toggleAria = custom ? "Search everything" : "Advanced filters";
+  const mode = custom ? "custom" : "omni";
 
   return (
-    <div className="hyle-filter-bar">
-      {visible.map((f) => {
-        const FilterInput = filters.Filter[f.key];
-        if (!FilterInput) return null;
-        const isFieldset = f.field.type.kind === "array";
-        if (isFieldset) return <FilterInput key={f.key} />;
-        return (
-          <label key={f.key}>
-            {f.label}
-            <FilterInput />
-          </label>
-        );
-      })}
+    <div className="hyle-filter-bar" data-hyle-mode={mode}>
+      <a
+        className="hyle-mode-toggle"
+        data-hyle-mode-toggle={other}
+        href={href}
+        aria-label={toggleAria}
+      >
+        {toggleIcon}
+      </a>
+      {custom ? (
+        visible.map((f) => {
+          const FilterInput = filters.Filter[f.key];
+          if (!FilterInput) return null;
+          const isFieldset = f.field.type.kind === "array";
+          if (isFieldset) return <FilterInput key={f.key} />;
+          return (
+            <label key={f.key}>
+              {f.label}
+              <FilterInput />
+            </label>
+          );
+        })
+      ) : (
+        <label className="hyle-omnisearch" data-hyle-omnisearch>
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search…"
+            aria-label="Search everything"
+          />
+        </label>
+      )}
+      {custom ? <input type="hidden" name="custom" value="1" /> : null}
       {children}
     </div>
   );

@@ -481,6 +481,23 @@ details.hyle-singleselect[open] .hyle-ss-caret {
   color: var(--hyle-color-text);
 }
 
+.hyle-filter-bar .hyle-omnisearch {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.hyle-mode-toggle {
+  align-self: center;
+  color: var(--hyle-text-muted);
+  text-decoration: none;
+  padding: 0;
+  line-height: 1;
+}
+
+.hyle-mode-toggle:hover {
+  color: var(--hyle-color-primary);
+}
+
 /* ── Table footer / pagination ── */
 
 .hyle-table-footer {

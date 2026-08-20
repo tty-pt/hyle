@@ -725,6 +725,143 @@ static unsigned prefilter_fts(
 	return fts_hd;
 }
 
+/* ---- q pre-filter (stored values + resolved ref labels) --------------- */
+
+static const char *display_field_of(const registry_entry_t *t)
+{
+	size_t i;
+
+	if (!t)
+		return NULL;
+	for (i = 0; i < t->field_count; i++) {
+		if (t->fields[i].name &&
+		    strcmp(t->fields[i].name, "id") != 0)
+			return t->fields[i].name;
+	}
+	return NULL;
+}
+
+static const char *ref_token_label(
+        const registry_entry_t *target, const char *token, const char *df)
+{
+	const char *slug;
+	char key[1024];
+
+	if (!target || !token || !*token || !df)
+		return NULL;
+	slug = token;
+	if (token[0] >= '0' && token[0] <= '9') {
+		const char *pos_slug;
+
+		pos_slug = qmap_get_key(
+		        target->fields_hd, (uint32_t)atoi(token));
+		if (pos_slug)
+			slug = pos_slug;
+	}
+	snprintf(key, sizeof(key), "%s:%s", slug, df);
+	return (const char *)qmap_get(target->fields_hd, key);
+}
+
+static int token_label_matches(
+        const registry_entry_t *target, const char *token, const char *df,
+        const char *q)
+{
+	const char *label;
+
+	label = ref_token_label(target, token, df);
+	return label && hyle_ci_substr(label, q);
+}
+
+static int stored_labels_match(
+        const registry_entry_t *target, const char *stored, const char *df,
+        const char *q)
+{
+	const char *p;
+
+	p = stored;
+	while (*p) {
+		const char *nl;
+		char token[256];
+		size_t n;
+
+		nl = strchr(p, '\n');
+		n = nl ? (size_t)(nl - p) : strlen(p);
+		if (n >= sizeof(token))
+			n = sizeof(token) - 1;
+		if (n > 0) {
+			memcpy(token, p, n);
+			token[n] = '\0';
+			if (token_label_matches(target, token, df, q))
+				return 1;
+		}
+		if (!nl)
+			break;
+		p = nl + 1;
+	}
+	return 0;
+}
+
+static int row_matches_q(
+        const registry_entry_t *e, const char *row_id, const char *q)
+{
+	size_t i;
+
+	if (hyle_ci_substr(row_id, q))
+		return 1;
+	for (i = 0; i < e->field_count; i++) {
+		const hyle_field_t *f = &e->fields[i];
+		char key[1024];
+		const char *stored;
+		const registry_entry_t *target;
+		const char *df;
+
+		if (!f->name)
+			continue;
+		snprintf(key, sizeof(key), "%s:%s", row_id, f->name);
+		stored = (const char *)qmap_get(e->fields_hd, key);
+		if (stored && hyle_ci_substr(stored, q))
+			return 1;
+		if (f->type != HYLE_FIELD_REFERENCE &&
+		    f->type != HYLE_FIELD_MULTI_REFERENCE)
+			continue;
+		if (!f->target_source || !f->target_source[0] || !stored)
+			continue;
+		target = find_entry(f->target_source);
+		if (!target)
+			continue;
+		df = display_field_of(target);
+		if (!df)
+			continue;
+		if (stored_labels_match(target, stored, df, q))
+			return 1;
+	}
+	return 0;
+}
+
+static unsigned prefilter_q(
+        const registry_entry_t *e, const char *q, unsigned base_hd)
+{
+	unsigned q_hd;
+	uint32_t cur;
+	const void *k;
+	const void *v;
+
+	if (!q || !*q || !base_hd)
+		return 0;
+	q_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0xFF, 0);
+	if (!q_hd)
+		return 0;
+	cur = qmap_iter(base_hd, NULL, 0);
+	while (qmap_next(&k, &v, cur)) {
+		const char *rid = (const char *)k;
+
+		if (row_matches_q(e, rid, q))
+			qmap_put(q_hd, rid, "");
+	}
+	qmap_fin(cur);
+	return q_hd;
+}
+
 /* ---- hyle_source_query ---- */
 
 int hyle_source_query(
@@ -739,6 +876,8 @@ int hyle_source_query(
 	hyle_query_t local_query;
 	unsigned pre_hd = 0;
 	unsigned fts_hd = 0;
+	unsigned q_hd = 0;
+	unsigned base;
 
 	if (!source_id || !query || !out)
 		return -1;
@@ -776,7 +915,18 @@ int hyle_source_query(
 	        e, local_query.filters, local_query.filter_count,
 	        fts_hd ? fts_hd : e->row_hd);
 
-	input.row_hd = pre_hd ? pre_hd : (fts_hd ? fts_hd : e->row_hd);
+	base = pre_hd ? pre_hd : (fts_hd ? fts_hd : e->row_hd);
+	if (local_query.q && *local_query.q) {
+		q_hd = prefilter_q(e, local_query.q, base);
+		if (q_hd) {
+			input.row_hd = q_hd;
+			local_query.q = NULL;
+		} else {
+			input.row_hd = base;
+		}
+	} else {
+		input.row_hd = base;
+	}
 	input.fields_hd = e->fields_hd;
 	memset(out, 0, sizeof(*out));
 
@@ -784,6 +934,8 @@ int hyle_source_query(
 	        ctx, &input, &local_query, e->fields, e->field_count, out,
 	        &total32);
 
+	if (q_hd)
+		qmap_close(q_hd);
 	if (pre_hd)
 		qmap_close(pre_hd);
 	if (fts_hd)

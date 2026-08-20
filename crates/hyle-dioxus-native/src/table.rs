@@ -176,7 +176,20 @@ pub fn HyleTableFilterBar(
     filters: HyleFiltersState,
     only: Option<Vec<String>>,
     children: Option<Element>,
+    custom: Option<bool>,
+    q: Option<String>,
+    toggle_href: Option<String>,
 ) -> Element {
+    let is_custom = custom.unwrap_or(false);
+    let is_omni = !is_custom;
+    let cur = if is_omni { "omni" } else { "custom" };
+    let other = if is_omni { "custom" } else { "omni" };
+    let href = toggle_href.unwrap_or_else(|| {
+        if is_custom { "?".to_string() } else { "?custom=1".to_string() }
+    });
+    let toggle_icon = if is_omni { "⚙" } else { "⌕" };
+    let toggle_aria = if is_omni { "Advanced filters" } else { "Search everything" };
+    let q_val = q.unwrap_or_default();
     let fields = filters.fields.read();
     let visible: Vec<_> = fields.iter().filter(|f| {
         only.as_ref().map(|keys| keys.contains(&f.key)).unwrap_or(true)
@@ -184,13 +197,35 @@ pub fn HyleTableFilterBar(
     drop(fields);
 
     rsx! {
-        div { class: "hyle-filter-bar",
-            for field_meta in visible {
-                FilterField {
-                    key: "{field_meta.key}",
-                    state: filters,
-                    field_key: field_meta.key.clone(),
+        div { class: "hyle-filter-bar", "data-hyle-mode": "{cur}",
+            a {
+                class: "hyle-mode-toggle",
+                "data-hyle-mode-toggle": "{other}",
+                href: "{href}",
+                aria_label: "{toggle_aria}",
+                "{toggle_icon}"
+            }
+            if is_omni {
+                label { class: "hyle-omnisearch", "data-hyle-omnisearch": "1",
+                    input {
+                        r#type: "search",
+                        name: "q",
+                        value: "{q_val}",
+                        placeholder: "Search…",
+                        aria_label: "Search everything",
+                    }
                 }
+            } else {
+                for field_meta in visible {
+                    FilterField {
+                        key: "{field_meta.key}",
+                        state: filters,
+                        field_key: field_meta.key.clone(),
+                    }
+                }
+            }
+            if is_custom {
+                input { r#type: "hidden", name: "custom", value: "1" }
             }
             {children}
         }

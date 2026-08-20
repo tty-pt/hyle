@@ -42,6 +42,9 @@ int hyle_parse_query(char *query_str, hyle_query_t *out);
 /* Free dynamically allocated members of a parsed query. */
 void hyle_query_clear(hyle_query_t *q);
 
+/* Case-insensitive, accent-sensitive substring match (stoma_fold). */
+int hyle_ci_substr(const char *str, const char *sub);
+
 /*
  * Filter rows: emit matching row IDs to output->row_hd.
  * Edits: output->row_hd written, output->fields_hd set to input->fields_hd.

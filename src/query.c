@@ -137,6 +137,10 @@ int hyle_parse_query(char *query_str, hyle_query_t *out)
 			out->per_page = (uint32_t)atol(value);
 		} else if (strcmp(name, "q") == 0) {
 			out->q = value;
+		} else if (strcmp(name, "custom") == 0 ||
+		           strcmp(name, "mode") == 0 ||
+		           strcmp(name, "search_mode") == 0) {
+			continue;
 		} else if (strcmp(name, "include") == 0) {
 			char *field = value;
 			while (field) {
