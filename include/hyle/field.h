@@ -12,6 +12,7 @@ typedef enum {
 	HYLE_FIELD_REFERENCE,
 	HYLE_FIELD_MULTI_REFERENCE,
 	HYLE_FIELD_INVERSE,
+	HYLE_FIELD_DERIVED = 99,
 } hyle_field_type_t;
 
 typedef struct {
@@ -28,6 +29,7 @@ typedef struct {
 	const char *pattern;
 	int searchable;
 	int combine; /* 0 = OR (default), 1 = AND within-field */
+	const char *derive_key;
 } hyle_field_t;
 
 const hyle_field_t *hyle_field_by_name(

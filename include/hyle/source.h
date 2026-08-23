@@ -177,4 +177,38 @@ void hyle_source_ordered_clear(const char *source_id,
 void hyle_source_ordered_save(const char *source_id,
 	const char *partition_val);
 
+/* ---- Derive field registry ---------------------------------------------- */
+/*
+ * Function signature for derived field providers.
+ * Called during index rebuild to get the searchable value for a derived field.
+ *
+ * def:     Source definition (opaque, retrieved via hyle_source_get_user())
+ * row_id:  Row identifier
+ * field_name: Name of the derived field being queried
+ *
+ * Returns: Pointer to static/thread-local buffer (caller must not free),
+ *          or NULL/empty string if no value.
+ */
+typedef const char *(*hyle_derive_fn_t)(
+	const void *def,
+	const char *row_id,
+	const char *field_name,
+	void *user);
+
+/*
+ * Register a derive provider for a source.
+ * Called by modules during xy_install() after source registration.
+ *
+ * derive_key:  Key matching hyle_field_t.derive_key (e.g. "song.lyrics_from_data")
+ * fn:          Provider function
+ * user:        Opaque user data passed to fn
+ */
+int hyle_register_derive(const char *derive_key, hyle_derive_fn_t fn, void *user);
+
+/*
+ * Lookup and call a derive provider.
+ * Called internally during index rebuild.
+ */
+const char *hyle_call_derive(const void *def, const char *derive_key, const char *row_id, const char *field_name, void *user);
+
 #endif

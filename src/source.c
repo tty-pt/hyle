@@ -36,6 +36,15 @@ typedef struct {
 static registry_entry_t registry[HYLE_SOURCE_MAX];
 static size_t registry_count = 0;
 
+typedef struct {
+	char derive_key[128];
+	hyle_derive_fn_t fn;
+	void *user;
+} hyle_derive_reg_t;
+
+static hyle_derive_reg_t derive_registry[32];
+static int derive_registry_count = 0;
+
 static registry_entry_t *find_entry(const char *source_id)
 {
 	size_t i;
@@ -65,6 +74,32 @@ static registry_entry_t *alloc_entry(const char *source_id)
 	strncpy(e->source_id, source_id, sizeof(e->source_id) - 1);
 	return e;
 }
+
+int hyle_register_derive(const char *derive_key, hyle_derive_fn_t fn, void *user)
+{
+	if (derive_registry_count >= 32)
+		return -1;
+	derive_registry[derive_registry_count++] = (hyle_derive_reg_t){
+		{0}, fn, user
+	};
+	strncpy(derive_registry[derive_registry_count - 1].derive_key, derive_key, 127);
+	return 0;
+}
+
+
+const char *hyle_call_derive(const void *def, const char *derive_key, const char *row_id, const char *field_name, void *user)
+{
+	if (!derive_key)
+		return NULL;
+	for (int i = 0; i < derive_registry_count; i++) {
+		const hyle_derive_reg_t *dr = &derive_registry[i];
+		if (strcmp(dr->derive_key, derive_key) == 0 && dr->fn)
+			return dr->fn(def, row_id, field_name, dr->user);
+	}
+	return NULL;
+}
+
+
 
 /* ---- hyle_source_register ---- */
 
@@ -617,21 +652,30 @@ static unsigned prefilter_fts(
 			for (sj = 0; sj < e->field_count; sj++) {
 				char key[1024];
 				const char *fv;
+				const char *fname = e->fields[sj].name;
 
-				if (!e->fields[sj].searchable)
+				if (!e->fields[sj].searchable || !fname || !fname[0])
 					continue;
-				/* qmap_field_get is record-map-only; the
-				 * composite "row:field" key resolves on both
-				 * plain and record maps (view.c row_field_val).
-				 */
-				snprintf(
-				        key, sizeof(key), "%s:%s", rid,
-				        e->fields[sj].name);
-				fv = qmap_get(e->fields_hd, key);
-				if (fv)
+				if (!rid || !rid[0])
+					continue;
+				if (e->fields[sj].type == HYLE_FIELD_DERIVED) {
+					const void *def = e->user;
+					fv = hyle_call_derive(def, e->fields[sj].derive_key, rid, fname, NULL);
+				} else {
+					snprintf(
+					        key, sizeof(key), "%s:%s", rid,
+					        fname);
+					fv = qmap_get(e->fields_hd, key);
+				}
+				if (fv && *fv) {
 					stoma_index(
-					        e->stoma, e->fields[sj].name,
+					        e->stoma, fname,
 					        rid, fv);
+					if (e->fields[sj].type == HYLE_FIELD_DERIVED) {
+						snprintf(key, sizeof(key), "%s:%s", rid, fname);
+						qmap_put(e->fields_hd, key, fv);
+					}
+				}
 			}
 		}
 		qmap_fin(cur);
