@@ -45,6 +45,11 @@ void hyle_query_clear(hyle_query_t *q);
 /* Case-insensitive, accent-sensitive substring match (stoma_fold). */
 int hyle_ci_substr(const char *str, const char *sub);
 
+/* Case-insensitive, accent-sensitive substring match with punctuation
+ * normalization (Google-like): replaces punctuation except apostrophes and
+ * hyphens within words with spaces, collapses whitespace. */
+int hyle_ci_substr_punct(const char *str, const char *sub);
+
 /*
  * Filter rows: emit matching row IDs to output->row_hd.
  * Edits: output->row_hd written, output->fields_hd set to input->fields_hd.

@@ -690,6 +690,70 @@ static void test_filter_accent_sensitive(void)
 	hyle_ctx_free(ctx);
 }
 
+static void test_filter_punctuation_normalized(void)
+{
+	printf("\n=== filter: punctuation normalized (q parameter) ===\n");
+	hyle_ctx_t *ctx = hyle_ctx_new();
+	hyle_row_set_t input;
+
+	input.row_hd = make_row_hd();
+	input.fields_hd = make_row_hd();
+
+	row_set_add(&input, "song1");
+	row_set_field(&input, "song1", "title", "Senhor, vela por mim");
+	row_set_add(&input, "song2");
+	row_set_field(&input, "song2", "title", "Don't stop believing");
+	row_set_add(&input, "song3");
+	row_set_field(&input, "song3", "title", "Well-known song");
+
+	/* q parameter should use punctuation normalization */
+	hyle_row_set_t o1 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "senhor vela por mim", NULL, 0, NULL, 0, &o1);
+	CHECK_IDS(o1, "song1");
+
+	hyle_row_set_t o2 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "senhor, vela por mim", NULL, 0, NULL, 0, &o2);
+	CHECK_IDS(o2, "song1");
+
+	hyle_row_set_t o3 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "dont stop", NULL, 0, NULL, 0, &o3);
+	CHECK_IDS(o3, "song2");
+
+	hyle_row_set_t o4 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "don't stop", NULL, 0, NULL, 0, &o4);
+	CHECK_IDS(o4, "song2");
+
+	hyle_row_set_t o5 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "well known", NULL, 0, NULL, 0, &o5);
+	CHECK_IDS(o5, "song3");
+
+	hyle_row_set_t o6 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, "well-known", NULL, 0, NULL, 0, &o6);
+	CHECK_IDS(o6, "song3");
+
+	/* field filters should NOT use punctuation normalization */
+	hyle_field_filter_t f1[] = { { "title", "senhor vela por mim" } };
+	hyle_row_set_t o7 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, NULL, f1, 1, NULL, 0, &o7);
+	CHECK(qmap_count(o7.row_hd, NULL) == 0, "field filter no punct norm");
+
+	hyle_field_filter_t f2[] = { { "title", "Senhor, vela por mim" } };
+	hyle_row_set_t o8 = { make_row_hd(), 0 };
+	hyle_filter_rows(ctx, &input, NULL, f2, 1, NULL, 0, &o8);
+	CHECK_IDS(o8, "song1");
+
+	qmap_close(o1.row_hd);
+	qmap_close(o2.row_hd);
+	qmap_close(o3.row_hd);
+	qmap_close(o4.row_hd);
+	qmap_close(o5.row_hd);
+	qmap_close(o6.row_hd);
+	qmap_close(o7.row_hd);
+	qmap_close(o8.row_hd);
+	destroy_rows(&input);
+	hyle_ctx_free(ctx);
+}
+
 /* ================================================================
  * Phase 2: hyle_sort_rows tests
  * ================================================================ */
@@ -2052,6 +2116,7 @@ int main(void)
 	test_filter_fulltext_no_match();
 	test_filter_q_and_field();
 	test_filter_accent_sensitive();
+	test_filter_punctuation_normalized();
 
 	/* Phase 2 — sort */
 	test_sort_string_asc();

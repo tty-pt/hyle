@@ -81,6 +81,81 @@ int hyle_ci_substr(const char *str, const char *sub)
 	return ci_substr(str, sub);
 }
 
+/* Punctuation normalization (Google-like): most punctuation → space,
+ * apostrophes are stripped so "don't" ↔ "dont" match, hyphens → space so
+ * "well-known" ↔ "well known" match. Collapse whitespace. */
+static void punct_normalize(char *out, size_t outsz, const char *in)
+{
+	size_t in_len = strlen(in);
+	size_t out_pos = 0;
+	size_t i;
+
+	if (outsz == 0)
+		return;
+
+	for (i = 0; i < in_len && out_pos + 1 < outsz; i++) {
+		unsigned char c = (unsigned char)in[i];
+		int is_alnum = isalnum(c) || c >= 0x80;
+
+		if (is_alnum) {
+			out[out_pos++] = (char)c;
+		} else if (c == '\'') {
+			/* Strip apostrophes entirely (“don't” → “dont”). */
+			continue;
+		} else {
+			if (out_pos == 0 || out[out_pos - 1] != ' ') {
+				if (out_pos + 1 < outsz)
+					out[out_pos++] = ' ';
+			}
+		}
+	}
+
+	while (out_pos > 0 && out[out_pos - 1] == ' ')
+		out_pos--;
+
+	out[out_pos] = '\0';
+}
+
+static int ci_substr_punct(const char *str, const char *sub)
+{
+	char fstr[4096];
+	char fsub[256];
+	size_t slen, nlen, i;
+
+	if (!sub || !*sub)
+		return 1;
+	if (!str)
+		return 0;
+
+	punct_normalize(fsub, sizeof(fsub), sub);
+	punct_normalize(fstr, sizeof(fstr), str);
+
+	if (stoma_fold(fsub, sizeof(fsub), fsub) < 0 ||
+	    stoma_fold(fstr, sizeof(fstr), fstr) < 0)
+		return 0;
+
+	slen = strlen(fstr);
+	nlen = strlen(fsub);
+	if (nlen > slen)
+		return 0;
+
+	for (i = 0; i <= slen - nlen; i++) {
+		size_t j;
+		for (j = 0; j < nlen; j++) {
+			if (fstr[i + j] != fsub[j])
+				break;
+		}
+		if (j == nlen)
+			return 1;
+	}
+	return 0;
+}
+
+int hyle_ci_substr_punct(const char *str, const char *sub)
+{
+	return ci_substr_punct(str, sub);
+}
+
 /* ---- multi-ref token match ---- */
 
 /*
@@ -166,7 +241,7 @@ void hyle_filter_rows(hyle_ctx_t *ctx,
 			continue;
 
 		if (q && *q) {
-			int found = ci_substr(row_id, q);
+			int found = ci_substr_punct(row_id, q);
 			if (!found) {
 				char prefix[1024];
 				snprintf(prefix, sizeof(prefix), "%s:", row_id);
@@ -180,7 +255,7 @@ void hyle_filter_rows(hyle_ctx_t *ctx,
 					const char *key = (const char *)fk;
 					if (strncmp(key, prefix, plen) != 0)
 						continue;
-					if (ci_substr(
+					if (ci_substr_punct(
 						(const char *)fv2, q)) {
 						found = 1;
 						break;

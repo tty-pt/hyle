@@ -764,17 +764,17 @@ static const char *ref_token_label(
 
 static int token_label_matches(
         const registry_entry_t *target, const char *token, const char *df,
-        const char *q)
+        const char *q, int punct_norm)
 {
 	const char *label;
 
 	label = ref_token_label(target, token, df);
-	return label && hyle_ci_substr(label, q);
+	return label && (punct_norm ? hyle_ci_substr_punct(label, q) : hyle_ci_substr(label, q));
 }
 
 static int stored_labels_match(
         const registry_entry_t *target, const char *stored, const char *df,
-        const char *q)
+        const char *q, int punct_norm)
 {
 	const char *p;
 
@@ -791,7 +791,7 @@ static int stored_labels_match(
 		if (n > 0) {
 			memcpy(token, p, n);
 			token[n] = '\0';
-			if (token_label_matches(target, token, df, q))
+			if (token_label_matches(target, token, df, q, punct_norm))
 				return 1;
 		}
 		if (!nl)
@@ -802,11 +802,11 @@ static int stored_labels_match(
 }
 
 static int row_matches_q(
-        const registry_entry_t *e, const char *row_id, const char *q)
+        const registry_entry_t *e, const char *row_id, const char *q, int punct_norm)
 {
 	size_t i;
 
-	if (hyle_ci_substr(row_id, q))
+	if (punct_norm ? hyle_ci_substr_punct(row_id, q) : hyle_ci_substr(row_id, q))
 		return 1;
 	for (i = 0; i < e->field_count; i++) {
 		const hyle_field_t *f = &e->fields[i];
@@ -819,7 +819,7 @@ static int row_matches_q(
 			continue;
 		snprintf(key, sizeof(key), "%s:%s", row_id, f->name);
 		stored = (const char *)qmap_get(e->fields_hd, key);
-		if (stored && hyle_ci_substr(stored, q))
+		if (stored && (punct_norm ? hyle_ci_substr_punct(stored, q) : hyle_ci_substr(stored, q)))
 			return 1;
 		if (f->type != HYLE_FIELD_REFERENCE &&
 		    f->type != HYLE_FIELD_MULTI_REFERENCE)
@@ -832,7 +832,7 @@ static int row_matches_q(
 		df = display_field_of(target);
 		if (!df)
 			continue;
-		if (stored_labels_match(target, stored, df, q))
+		if (stored_labels_match(target, stored, df, q, punct_norm))
 			return 1;
 	}
 	return 0;
@@ -855,7 +855,7 @@ static unsigned prefilter_q(
 	while (qmap_next(&k, &v, cur)) {
 		const char *rid = (const char *)k;
 
-		if (row_matches_q(e, rid, q))
+		if (row_matches_q(e, rid, q, 1))
 			qmap_put(q_hd, rid, "");
 	}
 	qmap_fin(cur);
