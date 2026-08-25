@@ -89,6 +89,7 @@ int hyle_register_derive(const char *derive_key, hyle_derive_fn_t fn, void *user
 
 const char *hyle_call_derive(const void *def, const char *derive_key, const char *row_id, const char *field_name, void *user)
 {
+	(void)user;
 	if (!derive_key)
 		return NULL;
 	for (int i = 0; i < derive_registry_count; i++) {

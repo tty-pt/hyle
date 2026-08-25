@@ -296,6 +296,10 @@ details.hyle-multiselect[open] .hyle-ms-caret {
   padding: 4px 0;
 }
 
+.hyle-ms-option {
+  text-align: left;
+}
+
 .hyle-filter-bar .hyle-ms-option {
   display: flex;
   flex-direction: row;
@@ -663,4 +667,193 @@ details.hyle-singleselect[open] .hyle-ss-caret {
 .hyle-table-wrap td > input:not(.hyle-row-action) {
   position: relative;
   z-index: 1;
+}
+
+/* ── Paginated omnisearch picker (form REFERENCE/MULTI_REFERENCE) ──
+ * Sizing mirrors .hyle-ms-* so triggers align with sibling inputs.
+ * The panel itself is the scroll container so the infinite-scroll
+ * sentinel intersects within it. */
+
+.hyle-picker {
+  position: relative;
+  display: block;
+  font-size: 14px;
+  width: 100%;
+  flex: 1 1 0%;
+  min-width: 0;
+  text-align: left;
+}
+
+.hyle-picker-details {
+  display: block;
+  width: 100%;
+}
+
+.hyle-picker-submit {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hyle-frag-active [data-hyle-auto-submit] ~ .hyle-picker-submit,
+.hyle-frag-active [data-hyle-auto-submit] .hyle-picker-submit,
+.hyle-frag-active form:has([data-hyle-auto-submit]) .hyle-picker-submit {
+  display: none;
+}
+
+.hyle-picker-trigger {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 0.75em;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 4px;
+  background: var(--hyle-color-surface);
+  min-height: 36px;
+  height: 36px;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 14px;
+  text-align: left;
+}
+
+.hyle-picker-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.hyle-picker-values {
+  pointer-events: none;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.hyle-picker-values:empty::before {
+  content: "None";
+  opacity: 0.55;
+}
+
+.hyle-picker-caret {
+  flex: none;
+  opacity: 0.7;
+}
+
+details.hyle-picker-details[open] .hyle-picker-caret {
+  transform: rotate(180deg);
+}
+
+.hyle-picker-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 4px;
+  border: 1px solid var(--hyle-color-border);
+  border-radius: 6px;
+  background: var(--hyle-color-surface);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  text-align: left;
+}
+
+.hyle-picker-search {
+  width: 100%;
+  box-sizing: border-box;
+  height: 36px;
+  padding: 6px 10px;
+  border: none;
+  border-bottom: 1px solid var(--hyle-color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--hyle-color-text);
+  font-size: 14px;
+  text-align: left;
+}
+
+.hyle-picker-search:focus {
+  outline: none;
+  border-bottom-color: var(--hyle-color-primary);
+  box-shadow: none;
+}
+
+.hyle-picker-rows {
+  padding: 4px 0;
+}
+
+.hyle-picker-option {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--hyle-color-text);
+  font-size: 14px;
+  text-align: left;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+/* Single-select pickers: visually hide the native radio but keep it
+   focusable so Tab/arrow keys reach it natively; the checked state is
+   shown by highlighting the option row instead. Multi-select checkboxes
+   stay visible so users can see multi-selection state. */
+.hyle-picker[data-hyle-picker-multi='0'] .hyle-picker-option input[type='radio'] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.hyle-picker-option:has(input:checked) {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--hyle-color-primary, #2563eb);
+  font-weight: 600;
+}
+
+.hyle-picker-option:hover,
+.hyle-picker-option:has(input:focus) {
+  background: var(--hyle-surface-hover, #f3f4f6);
+  outline: none;
+}
+
+.hyle-picker-empty {
+  padding: 8px 10px;
+  color: var(--hyle-text-muted, #888);
+  font-style: italic;
+}
+
+/* Native Prev/Next are the no-JS engine; enhanced containers hide them. */
+.hyle-picker-paging {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--hyle-color-border);
+}
+
+.hyle-picker-page-btn {
+  min-width: 2em;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+.hyle-frag-active .hyle-picker-paging {
+  display: none;
 }
