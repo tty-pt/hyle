@@ -211,8 +211,29 @@ static bud_node *picker_panel_node(const hyle_bud_picker_desc_t *d)
 
 bud_node *hyle_bud_picker_field(const hyle_bud_picker_desc_t *d)
 {
+	char auto_url_tmpl[512];
+	const char *url_tmpl;
+
 	if (!d || !d->key || !d->key[0])
 		return NULL;
+
+	url_tmpl = d->url_tmpl;
+	if ((!url_tmpl || !url_tmpl[0]) && d->source && d->source[0]) {
+		char sp[64], pp[64];
+		if (d->search_param && d->search_param[0])
+			snprintf(sp, sizeof(sp), "%s", d->search_param);
+		else
+			snprintf(sp, sizeof(sp), "pick_q_%s", d->key);
+		if (d->page_param && d->page_param[0])
+			snprintf(pp, sizeof(pp), "%s", d->page_param);
+		else
+			snprintf(pp, sizeof(pp), "pick_page_%s", d->key);
+
+		snprintf(auto_url_tmpl, sizeof(auto_url_tmpl),
+		        "/pick/%s/options?key=%s&multi=%d&label=&sel={sel}&%s={q}&%s={page}",
+		        d->source, d->key, d->multi ? 1 : 0, sp, pp);
+		url_tmpl = auto_url_tmpl;
+	}
 
 	return lx_el("div",
 		lx_attr("class", "hyle-picker"),
@@ -221,8 +242,8 @@ bud_node *hyle_bud_picker_field(const hyle_bud_picker_desc_t *d)
 		d->source ? lx_attr("data-hyle-picker-source", d->source)
 		          : lx_none(),
 		lx_attr("data-hyle-picker-multi", d->multi ? "1" : "0"),
-		d->url_tmpl ? lx_attr("data-hyle-frag-url", d->url_tmpl)
-			    : lx_none(),
+		url_tmpl ? lx_attr("data-hyle-frag-url", url_tmpl)
+			 : lx_none(),
 		lx_el("details",
 			lx_attr("class", "hyle-picker-details"),
 			(d->q && d->q[0]) ? lx_attr("open", "") : lx_none(),
