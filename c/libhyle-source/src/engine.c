@@ -695,6 +695,12 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 		return -1;
 	}
 	*copy = *def;
+	copy->id = strdup(def->id);
+	copy->key_field = strdup(def->key_field);
+	copy->items_path = def->items_path ? strdup(def->items_path) : NULL;
+	if (def->store.user == def->items_path)
+		copy->store.user = (void *)copy->items_path;
+
 	if (!copy->store.ops) {
 		if (copy->flags & HYLE_SOURCE_FLAG_VOLATILE) {
 			copy->store = hyle_source_store_mem();
@@ -704,7 +710,7 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 	}
 
 	fields_hd = hyle_source_register(
-	        def->id, hf, n, def->record_id, def->flags | QM_SORTED, copy);
+	        copy->id, hf, n, def->record_id, def->flags | QM_SORTED, copy);
 
 	if (!fields_hd) {
 		free(hf);

@@ -439,3 +439,18 @@ void hyle_bud_picker_state_to_json(
 	(void)j_root;
 }
 #endif
+
+void hyle_bud_state_apply_len(
+        void *state, const hyle_schema_desc_t *fields, const char *json,
+        size_t len)
+{
+	bud_state_apply_stride_len(
+	        state, fields, sizeof(hyle_schema_desc_t), json, len);
+}
+
+void hyle_bud_state_apply(
+        void *state, const hyle_schema_desc_t *fields, const char *json)
+{
+	size_t len = json ? strlen(json) : 0;
+	hyle_bud_state_apply_len(state, fields, json, len);
+}

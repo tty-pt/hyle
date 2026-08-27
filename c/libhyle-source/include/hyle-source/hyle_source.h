@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <json-c/json.h>
+#include <hyle/schema.h>
 #include "store.h"
 
 typedef enum {
@@ -62,27 +63,9 @@ typedef struct {
 	const char *content_placeholder;
 } hyle_source_list_view_t;
 
-/* Framework-neutral unified descriptor */
-typedef struct source_desc {
-	const char *key;
-	size_t offset;
-	size_t size;
-	int is_int;
-	int kind;
-	int qm_type;
-	int source_type;
-	int writable;
-	int required;
-	size_t min_length;
-	const char *ref_source;
-	const char *ref_inverse;
-	int in_meta;
-	const char *file;
-	const char *filter_style;
-	const char *filter_mode;
-} hyle_source_desc_t;
-
-typedef struct source_desc source_desc_t;
+/* Framework-neutral unified descriptor aliases */
+typedef hyle_schema_desc_t hyle_source_desc_t;
+typedef hyle_schema_desc_t source_desc_t;
 
 typedef struct hyle_source_def_s {
 	const char *id;

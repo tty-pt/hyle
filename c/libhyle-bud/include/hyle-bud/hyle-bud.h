@@ -4,6 +4,13 @@
 #include <bud/bud.h>
 #include <bud/bud_jsx.h>
 #include <hyle/picker.h>
+#include <hyle/schema.h>
+
+void hyle_bud_state_apply(
+        void *state, const hyle_schema_desc_t *fields, const char *json);
+void hyle_bud_state_apply_len(
+        void *state, const hyle_schema_desc_t *fields, const char *json,
+        size_t len);
 
 #define HYLE_BUD_STRING 0
 #define HYLE_BUD_INT 1

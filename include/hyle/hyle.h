@@ -8,5 +8,6 @@
 #include "blueprint.h"
 #include "purify.h"
 #include "picker.h"
+#include "schema.h"
 
 #endif
