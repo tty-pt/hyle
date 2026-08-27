@@ -10,6 +10,7 @@ target/*
 /lib
 /bin
 *.o
+*.d
 /zig-bindings/.zig-cache/
 /zig-bindings/libhyle_zig.a
 /zig-bindings/zig-out/

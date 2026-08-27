@@ -50,6 +50,8 @@ static hyle_field_type_t source_to_hyle_type(hyle_source_field_type_t t)
 		return HYLE_FIELD_MULTI_REFERENCE;
 	case HYLE_SOURCE_FIELD_INVERSE:
 		return HYLE_FIELD_INVERSE;
+	case HYLE_SOURCE_FIELD_DERIVED:
+		return HYLE_FIELD_DERIVED;
 	default:
 		return HYLE_FIELD_STRING;
 	}
@@ -137,7 +139,7 @@ int hyle_source_resolve_ref_display_str(
 			break;
 		}
 	}
-	if (!f || f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE || !f->target_source)
+	if (!f || (f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE && f->type != HYLE_SOURCE_FIELD_REFERENCE) || !f->target_source)
 		return -1;
 
 	val = qmap_field_get(def->fields_hd, item_id, field_name);
@@ -199,9 +201,11 @@ int hyle_source_resolve_meta_display(
 		return -1;
 
 	for (int i = 0; i < count; i++) {
-		if (fields[i].kind != HYLE_SF_REF_DISPLAY)
+		if (fields[i].source_type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
+		    fields[i].source_type != HYLE_SOURCE_FIELD_REFERENCE &&
+		    fields[i].kind != HYLE_SF_REF_DISPLAY)
 			continue;
-		if (!fields[i].key || !fields[i].offset || !fields[i].size)
+		if (!fields[i].key || !fields[i].size)
 			continue;
 		char buf[4096] = { 0 };
 		if (hyle_source_resolve_ref_display_str(
@@ -247,7 +251,7 @@ source_ensure_entity(const char *ref_source, const char *display_name)
 		const char *fname =
 		        target->key_field ? target->key_field : "name";
 		target->store.ops->put_field(
-		        &target->store, target, slug, fname, display_name);
+		        (hyle_source_store_t *)&target->store, target, slug, fname, display_name);
 	}
 }
 
@@ -606,19 +610,19 @@ int hyle_source_update_item(
 		return -1;
 
 	if (def->store.ops && def->store.ops->put) {
+		for (size_t i = 0; i < def->field_count; i++) {
+			const hyle_source_field_t *f = &def->fields[i];
+			if ((f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
+			     f->type != HYLE_SOURCE_FIELD_REFERENCE) ||
+			    !f->target_source)
+				continue;
+			const char *val = qmap_get(data_handle, f->name);
+			source_ensure_tokens(f->target_source, val);
+		}
 		if (def->store.ops->put(
 		            (hyle_source_store_t *)&def->store, def, id,
 		            data_handle) != 0)
 			return -1;
-	}
-
-	for (size_t i = 0; i < def->field_count; i++) {
-		const hyle_source_field_t *f = &def->fields[i];
-		if (f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE ||
-		    !f->target_source)
-			continue;
-		const char *val = qmap_get(data_handle, f->name);
-		source_ensure_tokens(f->target_source, val);
 	}
 
 	int result = hyle_source_refresh_row(fd, dataset_id, id);
@@ -626,7 +630,8 @@ int hyle_source_update_item(
 	if (result == 0) {
 		for (size_t i = 0; i < def->field_count; i++) {
 			const hyle_source_field_t *f = &def->fields[i];
-			if (f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE ||
+			if ((f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
+			     f->type != HYLE_SOURCE_FIELD_REFERENCE) ||
 			    !f->target_source || !f->file)
 				continue;
 			char display[8192] = { 0 };
@@ -682,11 +687,13 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 		hf[i].pattern = sf->pattern;
 		hf[i].searchable =
 		        (sf->type == HYLE_SOURCE_FIELD_STRING ||
-		         sf->type == HYLE_SOURCE_FIELD_NULLABLE_STRING);
+		         sf->type == HYLE_SOURCE_FIELD_NULLABLE_STRING ||
+		         sf->type == HYLE_SOURCE_FIELD_DERIVED);
 		hf[i].combine =
 		        (sf->filter_mode && strcmp(sf->filter_mode, "and") == 0)
 		                ? 1
 		                : 0;
+		hf[i].derive_key = sf->derive_key;
 	}
 
 	copy = malloc(sizeof(*copy));
@@ -943,6 +950,8 @@ int hyle_source_def_to_source_fields(
 			continue;
 		sf[n].name = d->key;
 		sf[n].file = d->file ? d->file : d->key;
+		if (d->source_type == HYLE_SOURCE_FIELD_DERIVED)
+			sf[n].file = NULL;
 		sf[n].type = (hyle_source_field_type_t)d->source_type;
 		sf[n].writable = d->writable;
 		sf[n].target_source = d->ref_source;
@@ -955,6 +964,7 @@ int hyle_source_def_to_source_fields(
 		sf[n].pattern = NULL;
 		sf[n].filter_style = d->filter_style;
 		sf[n].filter_mode = d->filter_mode;
+		sf[n].derive_key = d->derive_key;
 		n++;
 	}
 	return n;

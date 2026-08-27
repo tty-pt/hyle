@@ -29,6 +29,7 @@ typedef enum {
 	HYLE_SOURCE_FIELD_REFERENCE,
 	HYLE_SOURCE_FIELD_MULTI_REFERENCE,
 	HYLE_SOURCE_FIELD_INVERSE,
+	HYLE_SOURCE_FIELD_DERIVED = 99,
 } hyle_source_field_type_t;
 
 typedef struct {
@@ -46,6 +47,7 @@ typedef struct {
 	const char *pattern;
 	const char *filter_style;
 	const char *filter_mode;
+	const char *derive_key;
 } hyle_source_field_t;
 
 typedef struct {

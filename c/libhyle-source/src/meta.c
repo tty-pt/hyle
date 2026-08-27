@@ -40,11 +40,10 @@ static int internal_read_meta_file(
 	mfp = fopen(p, "r");
 	if (!mfp)
 		return -1;
-	if (fgets(buf, (int)sz - 1, mfp)) {
-		size_t l = strlen(buf);
-		if (l > 0 && buf[l - 1] == '\n')
-			buf[l - 1] = '\0';
-	}
+	size_t n = fread(buf, 1, sz - 1, mfp);
+	buf[n] = '\0';
+	while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r'))
+		buf[--n] = '\0';
 	fclose(mfp);
 	return 0;
 }

@@ -18,6 +18,7 @@ void hyle_bud_state_apply_len(
 #define HYLE_BUD_NULLABLE_STRING 3
 #define HYLE_BUD_REFERENCE 4
 #define HYLE_BUD_MULTI_REFERENCE 5
+#define HYLE_BUD_DERIVED 99
 
 typedef hyle_option_t hyle_bud_option_t;
 typedef hyle_picker_desc_t hyle_bud_picker_desc_t;

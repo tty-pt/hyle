@@ -672,10 +672,6 @@ static unsigned prefilter_fts(
 					stoma_index(
 					        e->stoma, fname,
 					        rid, fv);
-					if (e->fields[sj].type == HYLE_FIELD_DERIVED) {
-						snprintf(key, sizeof(key), "%s:%s", rid, fname);
-						qmap_put(e->fields_hd, key, fv);
-					}
 				}
 			}
 		}
@@ -862,8 +858,13 @@ static int row_matches_q(
 
 		if (!f->name)
 			continue;
-		snprintf(key, sizeof(key), "%s:%s", row_id, f->name);
-		stored = (const char *)qmap_get(e->fields_hd, key);
+		if (f->type == HYLE_FIELD_DERIVED) {
+			const void *def = e->user;
+			stored = hyle_call_derive(def, f->derive_key, row_id, f->name, NULL);
+		} else {
+			snprintf(key, sizeof(key), "%s:%s", row_id, f->name);
+			stored = (const char *)qmap_get(e->fields_hd, key);
+		}
 		if (stored && (punct_norm ? hyle_ci_substr_punct(stored, q) : hyle_ci_substr(stored, q)))
 			return 1;
 		if (f->type != HYLE_FIELD_REFERENCE &&
