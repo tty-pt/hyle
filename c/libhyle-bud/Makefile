@@ -2,6 +2,7 @@ FOLDER := hyle-bud
 
 all := libhyle-bud
 
+EXTRA_CFLAGS += -I../../include
 LDLIBS-libhyle-bud := -lhyle -lbud -lqmap -ljson-c
 
 libhyle-bud-obj-y := src/filter.o src/table.o src/picker.o

@@ -1,0 +1,8 @@
+CFLAGS-libhyle-source-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-source_utils-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-store_fs-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-store_mem-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-meta-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-dsv-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-json-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-engine-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include

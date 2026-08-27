@@ -1,0 +1,308 @@
+#ifndef LIBHYLE_SOURCE_H
+#define LIBHYLE_SOURCE_H
+
+#include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <json-c/json.h>
+#include "store.h"
+
+typedef enum {
+	HYLE_SOURCE_ACCESS_PUBLIC = 0,
+	HYLE_SOURCE_ACCESS_LOGIN,
+} hyle_source_access_policy_t;
+
+typedef enum {
+	HYLE_SOURCE_ACCESS_RESULT_ALLOW = 0,
+	HYLE_SOURCE_ACCESS_RESULT_UNAUTHORIZED,
+	HYLE_SOURCE_ACCESS_RESULT_FORBIDDEN,
+} hyle_source_access_result_t;
+
+#define HYLE_SOURCE_FIELD_KIND_INVERSE 5
+
+typedef enum {
+	HYLE_SOURCE_FIELD_STRING = 0,
+	HYLE_SOURCE_FIELD_INT,
+	HYLE_SOURCE_FIELD_BOOL,
+	HYLE_SOURCE_FIELD_NULLABLE_STRING,
+	HYLE_SOURCE_FIELD_REFERENCE,
+	HYLE_SOURCE_FIELD_MULTI_REFERENCE,
+	HYLE_SOURCE_FIELD_INVERSE,
+} hyle_source_field_type_t;
+
+typedef struct {
+	const char *name;
+	const char *file;
+	hyle_source_field_type_t type;
+	int writable;
+	const char *target_source;
+	const char *inverse_name;
+	int required;
+	int64_t min;
+	int64_t max;
+	size_t min_length;
+	size_t max_length;
+	const char *pattern;
+	const char *filter_style;
+	const char *filter_mode;
+} hyle_source_field_t;
+
+typedef struct {
+	const char *name;
+	const char *label;
+} hyle_source_list_field_t;
+
+typedef struct {
+	const char *display_name;
+	const hyle_source_list_field_t *fields;
+	size_t field_count;
+	const char *default_sort;
+	const char *content_field;
+	const char *content_label;
+	const char *content_placeholder;
+} hyle_source_list_view_t;
+
+/* Framework-neutral unified descriptor */
+typedef struct source_desc {
+	const char *key;
+	size_t offset;
+	size_t size;
+	int is_int;
+	int kind;
+	int qm_type;
+	int source_type;
+	int writable;
+	int required;
+	size_t min_length;
+	const char *ref_source;
+	const char *ref_inverse;
+	int in_meta;
+	const char *file;
+	const char *filter_style;
+	const char *filter_mode;
+} hyle_source_desc_t;
+
+typedef struct source_desc source_desc_t;
+
+typedef struct hyle_source_def_s {
+	const char *id;
+	const char *key_field;
+	const char *items_path;
+	hyle_source_access_policy_t access_policy;
+	const hyle_source_field_t *fields;
+	size_t field_count;
+	unsigned source_hd;
+	unsigned fields_hd;
+	unsigned schema_hd;
+	uint32_t record_id;
+	unsigned flags;
+	const hyle_source_list_view_t *list_view;
+	const hyle_source_desc_t *defs;
+	int def_count;
+	size_t record_size;
+	void *user;
+	hyle_source_store_t store;
+} hyle_source_def_t;
+
+typedef int (*hyle_source_each_cb_t)(const hyle_source_def_t *, void *);
+
+#define HYLE_SOURCE_FLAG_VOLATILE 64u
+#define HYLE_SOURCE_ERR_VALIDATION -2
+
+/* ── State JSON builder ─────────────────────────────────────────── */
+
+typedef enum {
+	HYLE_SF_RECORD,
+	HYLE_SF_EXCLUDE,
+	HYLE_SF_REF_DISPLAY,
+} hyle_source_state_kind_t;
+
+typedef struct {
+	const char *name;
+	hyle_source_state_kind_t kind;
+} hyle_source_state_field_t;
+
+typedef struct {
+	const char *key;
+	int is_int;
+	int int_val;
+	const char *str_val;
+} hyle_source_state_kv_t;
+
+typedef struct {
+	const char *key;
+	char *dest;
+	size_t dest_size;
+} hyle_json_str_map_t;
+
+static inline void
+hyle_json_extract_strings(json_object *jo, const hyle_json_str_map_t *map)
+{
+	if (!jo || !map)
+		return;
+	json_object *jval;
+	for (const hyle_json_str_map_t *m = map; m->key; m++) {
+		if (json_object_object_get_ex(jo, m->key, &jval))
+			snprintf(
+			        m->dest, m->dest_size, "%s",
+			        json_object_get_string(jval));
+	}
+}
+
+/* ── Core Engine Functions ───────────────────────────────────────── */
+
+int hyle_source_clear_inverse_refs(
+    int fd,
+    const char *dataset_id,
+    const char *item_id);
+
+int hyle_source_def_to_qmap(
+    const hyle_source_desc_t *defs, int count, void *out);
+
+int hyle_source_def_to_source_fields(
+    const hyle_source_desc_t *defs, int count, void *out);
+
+int hyle_source_def_to_meta_fields(
+    const hyle_source_desc_t *defs, int count,
+    const void *record, void *out);
+
+int hyle_source_build_state_specs(
+    const hyle_source_desc_t *fields,
+    hyle_source_state_field_t *specs,
+    int max_specs);
+
+hyle_source_def_t *hyle_source_find(const char *dataset_id);
+
+int hyle_source_item_exists(
+    const char *dataset_id,
+    const char *item_id);
+
+int hyle_source_register_def(const hyle_source_def_t *def);
+
+int hyle_source_refresh_row(
+    int fd, const char *dataset_id, const char *id);
+
+int hyle_source_validate_row(
+    const hyle_source_def_t *def, unsigned data_handle, char **json_errors_out);
+
+int hyle_source_update_item(
+    int fd, const char *dataset_id,
+    const char *id, unsigned data_handle);
+
+int hyle_source_delete_item(
+    int fd, const hyle_source_def_t *def, const char *item_id);
+
+int hyle_ref_field_register(
+    const char *dataset_id, const char *field_name);
+
+int hyle_source_for_each(hyle_source_each_cb_t cb, void *user);
+
+unsigned hyle_source_query_dataset(
+    const char *dataset_id,
+    const char *query_str);
+
+unsigned hyle_source_get_data_hd(const char *dataset_id);
+unsigned hyle_source_get_schema_hd(const char *dataset_id);
+const hyle_source_list_view_t *hyle_source_get_list_view(
+    const char *dataset_id);
+
+int hyle_source_build_state_json(
+    const char *dataset_id,
+    const char *item_id,
+    const hyle_source_state_field_t *specs,
+    json_object **out);
+
+int hyle_source_state_overlay(
+    json_object *jo,
+    const hyle_source_state_kv_t *kvs);
+
+int hyle_source_overlay_from_desc(
+    json_object *jo,
+    const void *state,
+    const hyle_source_desc_t *fields,
+    int int_kind,
+    int str_kind);
+
+json_object *hyle_source_overlay_array(
+    const void *items, int count, size_t elem_size,
+    const hyle_source_desc_t *fields,
+    int int_kind, int str_kind);
+
+int hyle_source_resolve_ref_display_str(
+    const char *dataset_id,
+    const char *item_id,
+    const char *field_name,
+    char *out, size_t out_sz);
+
+int hyle_source_resolve_meta_display(
+    const char *dataset_id,
+    const char *item_id,
+    const hyle_source_desc_t *fields,
+    int count,
+    void *state);
+
+int hyle_source_meta_read(
+    const char *path,
+    const hyle_source_desc_t *fields,
+    int count,
+    void *record,
+    size_t record_size);
+
+int hyle_source_meta_write(
+    const char *path,
+    const hyle_source_desc_t *fields,
+    int count,
+    const void *record);
+
+uint32_t hyle_source_setup(
+    const char *source_id,
+    const char *key_field,
+    size_t record_size,
+    const char *items_path,
+    const hyle_source_desc_t *defs,
+    int field_count,
+    unsigned flags,
+    const hyle_source_list_view_t *list_view);
+
+size_t hyle_source_inv_keys(
+    const char *dataset_id,
+    const char *field,
+    uint32_t target_pos,
+    const char **keys,
+    size_t max);
+
+const char *hyle_source_inv_key_at(
+    const char *dataset_id,
+    const char *field,
+    uint32_t target_pos,
+    size_t index);
+
+const char *hyle_qmap_get_field_str(
+    unsigned hd,
+    const char *id,
+    const char *field);
+
+int hyle_source_dsv_load(
+    const char *source_id,
+    const char *pval,
+    unsigned fhd,
+    void *user);
+
+int hyle_source_dsv_save(
+    const char *source_id,
+    const char *pval,
+    unsigned fhd,
+    void *user);
+
+const hyle_source_desc_t *hyle_source_get_desc(
+    const char *dataset_id,
+    int *count_out);
+
+size_t hyle_source_get_record_size(
+    const char *dataset_id);
+
+/* Internal helper shared between engine and stores */
+int hyle_source_internal_process_multi_ref(
+    const hyle_source_field_t *f, const char *dataset_id, char **data);
+
+#endif

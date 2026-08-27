@@ -7,5 +7,6 @@
 #include "field.h"
 #include "blueprint.h"
 #include "purify.h"
+#include "picker.h"
 
 #endif
