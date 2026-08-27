@@ -284,6 +284,24 @@ const hyle_source_desc_t *hyle_source_get_desc(
 size_t hyle_source_get_record_size(
     const char *dataset_id);
 
+/*
+ * Generic field getter callback for form parsing.
+ * Takes field name, buffer, and buffer size.
+ * Returns copied length or -1 if not found / unsupported.
+ */
+typedef int (*hyle_field_getter_fn)(const char *name, char *buf, size_t sz, void *user);
+typedef int (*hyle_multi_field_getter_fn)(const char *name, char *buf, size_t sz, void *user);
+
+/*
+ * Parse submitted form data according to the schema definition and return
+ * an opened qmap handle populated with (field_name -> value) entries.
+ */
+unsigned hyle_source_parse_row_data_custom(
+    const hyle_source_def_t *def,
+    hyle_field_getter_fn get_single,
+    hyle_multi_field_getter_fn get_multi,
+    void *user);
+
 /* Internal helper shared between engine and stores */
 int hyle_source_internal_process_multi_ref(
     const hyle_source_field_t *f, const char *dataset_id, char **data);

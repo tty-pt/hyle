@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <bud/bud_app.h>
 #include <hyle-bud/hyle-bud.h>
 
@@ -453,4 +454,98 @@ void hyle_bud_state_apply(
 {
 	size_t len = json ? strlen(json) : 0;
 	hyle_bud_state_apply_len(state, fields, json, len);
+}
+
+static size_t hyle_url_decode(const char *src, size_t src_len, char *out, size_t out_len)
+{
+	size_t r = 0, w = 0;
+	while (r < src_len && w + 1 < out_len) {
+		if (src[r] == '%' && r + 2 < src_len) {
+			char hex[3] = { src[r + 1], src[r + 2], 0 };
+			char *end;
+			long val = strtol(hex, &end, 16);
+			if (end == hex + 2 && val >= 0) {
+				out[w++] = (char)val;
+				r += 3;
+				continue;
+			}
+		}
+		if (src[r] == '+')
+			out[w++] = ' ';
+		else
+			out[w++] = src[r];
+		r++;
+	}
+	out[w] = '\0';
+	return w;
+}
+
+size_t hyle_bud_query_param(
+        const char *qs, const char *key, char *out, size_t out_sz)
+{
+	size_t klen;
+	const char *p;
+
+	if (out && out_sz)
+		out[0] = '\0';
+	if (!qs || !key || !out || out_sz == 0)
+		return 0;
+	klen = strlen(key);
+	p = qs;
+	while (p && *p) {
+		const char *amp = strchr(p, '&');
+		size_t part_len = amp ? (size_t)(amp - p) : strlen(p);
+		const char *eq = memchr(p, '=', part_len);
+		if (eq && (size_t)(eq - p) == klen && strncmp(p, key, klen) == 0) {
+			const char *v = eq + 1;
+			size_t vlen = part_len - klen - 1;
+			return hyle_url_decode(v, vlen, out, out_sz);
+		}
+		p = amp ? amp + 1 : NULL;
+	}
+	return 0;
+}
+
+int hyle_bud_pick_find_active_scope(const char *qs, char *scope_buf, size_t scope_sz)
+{
+	const char *p;
+	if (scope_buf && scope_sz > 0)
+		scope_buf[0] = '\0';
+	if (!qs || !qs[0] || !scope_buf || scope_sz == 0)
+		return -1;
+
+	/* Check for replace=<scope> */
+	p = strstr(qs, "replace=");
+	if (p && (p == qs || p[-1] == '&' || p[-1] == '?')) {
+		p += 8;
+		const char *end = strchr(p, '&');
+		size_t len = end ? (size_t)(end - p) : strlen(p);
+		if (len > 0 && len < scope_sz) {
+			memcpy(scope_buf, p, len);
+			scope_buf[len] = '\0';
+			return atoi(scope_buf);
+		}
+	}
+
+	/* Check for pick_q_<key>__<scope>= or pick_page_<key>__<scope>= */
+	p = qs;
+	while ((p = strstr(p, "__")) != NULL) {
+		const char *start = p + 2;
+		const char *eq = strchr(start, '=');
+		if (eq && eq > start) {
+			const char *k = p;
+			while (k > qs && k[-1] != '&' && k[-1] != '?')
+				k--;
+			if (strncmp(k, "pick_q_", 7) == 0 || strncmp(k, "pick_page_", 10) == 0) {
+				size_t len = (size_t)(eq - start);
+				if (len > 0 && len < scope_sz) {
+					memcpy(scope_buf, start, len);
+					scope_buf[len] = '\0';
+					return atoi(scope_buf);
+				}
+			}
+		}
+		p += 2;
+	}
+	return -1;
 }

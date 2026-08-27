@@ -151,4 +151,33 @@ void hyle_bud_picker_slots(const hyle_bud_picker_desc_t *d,
 void hyle_bud_picker_rows(const hyle_bud_picker_desc_t *d,
         char *rows, size_t rows_sz);
 
+/*
+ * Helper to split query-string into key-value pairs without modifying input
+ */
+size_t hyle_bud_query_param(
+        const char *qs, const char *key, char *out, size_t out_sz);
+
+/*
+ * Active picker scope discovery helper
+ */
+int hyle_bud_pick_find_active_scope(const char *qs, char *scope_buf, size_t scope_sz);
+
+/*
+ * C-Struct to JSON State Overlays for WASM Hydration
+ */
+int hyle_bud_state_overlay_from_desc(
+        struct json_object *jo,
+        const void *state,
+        const bud_field_desc_t *fields,
+        int int_kind,
+        int str_kind);
+
+struct json_object *hyle_bud_state_overlay_array(
+        const void *items,
+        int count,
+        size_t elem_size,
+        const bud_field_desc_t *fields,
+        int int_kind,
+        int str_kind);
+
 #endif

@@ -1137,6 +1137,75 @@ const hyle_source_desc_t *hyle_source_get_desc(
 	return def->defs;
 }
 
+unsigned hyle_source_parse_row_data_custom(
+        const hyle_source_def_t *def,
+        hyle_field_getter_fn get_single,
+        hyle_multi_field_getter_fn get_multi,
+        void *user)
+{
+	unsigned hd;
+	size_t i;
+
+	if (!def)
+		return 0;
+
+	hd = qmap_open(NULL, "row_data", QM_STR, QM_STR, 0x1F, 0);
+	if (hd == 0)
+		return 0;
+
+	for (i = 0; i < def->field_count; i++) {
+		const hyle_source_field_t *f = &def->fields[i];
+		int fld_len;
+		char *val;
+
+		if (!f->writable)
+			continue;
+
+		if (f->type == HYLE_SOURCE_FIELD_MULTI_REFERENCE && get_multi) {
+			int all_len = get_multi(f->name, NULL, 0, user);
+
+			if (all_len > 0) {
+				val = malloc((size_t)all_len + 1);
+				if (!val) {
+					qmap_close(hd);
+					return 0;
+				}
+				if (get_multi(f->name, val, (size_t)all_len + 1, user) != all_len) {
+					free(val);
+					qmap_close(hd);
+					return 0;
+				}
+				qmap_put(hd, f->name, val);
+				free(val);
+				continue;
+			}
+			if (all_len == 0)
+				continue;
+		}
+
+		if (!get_single)
+			continue;
+
+		fld_len = get_single(f->name, NULL, 0, user);
+		if (fld_len <= 0)
+			continue;
+
+		val = malloc((size_t)fld_len + 1);
+		if (!val) {
+			qmap_close(hd);
+			return 0;
+		}
+		if (get_single(f->name, val, (size_t)fld_len + 1, user) != fld_len) {
+			free(val);
+			qmap_close(hd);
+			return 0;
+		}
+		qmap_put(hd, f->name, val);
+		free(val);
+	}
+	return hd;
+}
+
 size_t hyle_source_get_record_size(
         const char *dataset_id)
 {

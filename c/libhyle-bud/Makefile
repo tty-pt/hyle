@@ -7,6 +7,6 @@ LDLIBS-libhyle-bud := -lhyle -lbud -lqmap -ljson-c
 
 libhyle-bud-obj-y := src/filter.o src/table.o src/picker.o
 
-LDFLAGS-libhyle-bud := -L../../lib -L../../../bud/lib -L../../../libqmap/lib
+LDFLAGS-libhyle-bud := -L../../lib -L../../../bud/lib -Wl,-rpath,$(shell cd ../../../bud/lib && pwd) -L../../../libqmap/lib
 
 include ../../../mk/include.mk
