@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <json-c/json.h>
 #include <hyle/schema.h>
+#include <hyle/picker.h>
 #include "store.h"
 
 typedef enum {
@@ -187,9 +188,15 @@ unsigned hyle_source_query_dataset(
     const char *query_str);
 
 unsigned hyle_source_get_data_hd(const char *dataset_id);
+unsigned hyle_source_get_fields_hd(const char *dataset_id);
 unsigned hyle_source_get_schema_hd(const char *dataset_id);
 const hyle_source_list_view_t *hyle_source_get_list_view(
     const char *dataset_id);
+
+int hyle_source_build_item_json(
+    const hyle_source_def_t *def,
+    const char *item_id,
+    json_object **out);
 
 int hyle_source_build_state_json(
     const char *dataset_id,
@@ -303,6 +310,41 @@ unsigned hyle_source_parse_row_data_custom(
     hyle_field_getter_fn get_single,
     hyle_multi_field_getter_fn get_multi,
     void *user);
+
+/*
+ * Foreign Option and Reference Resolution APIs (Entity Pattern)
+ */
+int hyle_source_get_display_field(
+    const char *dataset_id, char *out, size_t sz);
+
+const char *hyle_source_get_item_label(
+    const char *dataset_id, const char *row_id, const char *display_field,
+    char *out, size_t sz);
+
+int hyle_source_resolve_options(
+    const char *dataset_id, const char *q, int page0, int per_page,
+    hyle_option_t *opts, int max, int *total_out,
+    char (*id_buf)[64], char (*label_buf)[256]);
+
+int hyle_source_resolve_tokens(
+    const char *dataset_id, const char *comma_slugs, hyle_option_t *out,
+    int max, char (*id_buf)[64], char (*label_buf)[256]);
+
+int hyle_source_normalize_tokens_to_slugs(
+    const char *dataset_id, const char *raw, char *out, size_t out_sz);
+
+int hyle_source_get_enum_options(
+    const char *dataset_id, hyle_option_t *pool, int pool_avail,
+    char (*id_buf)[64], char (*label_buf)[256]);
+
+/*
+ * File and Storage Utility APIs
+ */
+int hyle_source_is_safe_id(const char *id);
+char *hyle_source_slurp_file(const char *path);
+int hyle_source_write_file(const char *path, const char *buf, size_t sz);
+int hyle_source_remove_path_recursive(const char *path);
+const char *hyle_source_resolve_doc_root(char *buf, size_t sz);
 
 /* Internal helper shared between engine and stores */
 int hyle_source_internal_process_multi_ref(

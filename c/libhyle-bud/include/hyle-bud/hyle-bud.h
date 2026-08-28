@@ -29,6 +29,7 @@ typedef hyle_picker_buffer_t hyle_bud_picker_buffer_t;
 #define HYLE_BUD_PICKER_MAX_OPTS HYLE_PICKER_MAX_OPTS
 #define HYLE_BUD_PICKER_MAX_SEL HYLE_PICKER_MAX_SEL
 #define HYLE_BUD_PICKER_MAX_FIELDS HYLE_PICKER_MAX_FIELDS
+#define HYLE_BUD_PICK_QS_BUDGET HYLE_PICKER_QS_BUDGET
 
 struct json_object;
 
@@ -40,6 +41,11 @@ void hyle_bud_picker_state_from_json(
 void hyle_bud_picker_state_to_json(
         const hyle_bud_picker_view_t *pv, struct json_object *j_root);
 
+bud_node *hyle_bud_text_input(
+	const char *key,
+	const char *label,
+	const char *current_value);
+
 bud_node *hyle_bud_filter_field(
 	const char *key,
 	const char *label,
@@ -48,6 +54,19 @@ bud_node *hyle_bud_filter_field(
 	const hyle_bud_option_t *options,
 	int noptions,
 	const char *filter_style);
+
+/*
+ * Schema-Driven Generic Form Builder (Entity Pattern)
+ */
+bud_node *hyle_bud_form(
+        const hyle_schema_desc_t *schema,
+        const void *record,
+        const char *action,
+        const char *cancel_href,
+        const char *submit_label,
+        const char *csrf_token,
+        const hyle_bud_picker_view_t *pv,
+        const char *vstr_val);
 
 /*
  * Schema-Driven Generic Filter Component (Entity Pattern)
@@ -205,6 +224,30 @@ size_t hyle_bud_query_param(
  * Active picker scope discovery helper
  */
 int hyle_bud_pick_find_active_scope(const char *qs, char *scope_buf, size_t scope_sz);
+
+/*
+ * Schema-Driven Picker View Collection (Entity Pattern)
+ */
+int hyle_bud_picker_view_collect_schema(
+        const char *qs,
+        const hyle_schema_desc_t *schema,
+        const void *record,
+        hyle_bud_picker_view_t *pv_out,
+        int *active_scope_out);
+
+int hyle_bud_picker_view_collect_scoped(
+        const char *qs,
+        const hyle_schema_desc_t *schema,
+        const void *record,
+        hyle_bud_picker_view_t *pv_out,
+        const char *scope);
+
+int hyle_bud_picker_view_collect_auto_fields_schema(
+        const char *qs,
+        const hyle_schema_desc_t *schema,
+        hyle_bud_picker_view_t *pv_out,
+        int *active_field_idx_out,
+        int *active_scope_out);
 
 /*
  * C-Struct to JSON State Overlays for WASM Hydration

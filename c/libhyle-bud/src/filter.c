@@ -573,7 +573,7 @@ bud_node *hyle_bud_reference_select_dropdown(
 			        lx_node(container)))).data.node;
 }
 
-static bud_node *hyle_bud_text_input(
+bud_node *hyle_bud_text_input(
 	const char *key,
 	const char *label,
 	const char *current_value)

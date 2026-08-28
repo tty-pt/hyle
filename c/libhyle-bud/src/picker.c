@@ -572,6 +572,10 @@ bud_node *hyle_bud_filter_scoped(
 	if (!field_name || !field_name[0])
 		return NULL;
 
+	if (pv != NULL && pv->n == 0) {
+		return hyle_bud_text_input(field_name, field_name, current_value);
+	}
+
 	if (desc) {
 		for (const hyle_schema_desc_t *scan = desc; scan && scan->key; scan++) {
 			if (strcmp(scan->key, field_name) == 0) {
@@ -635,8 +639,10 @@ bud_node *hyle_bud_filter_scoped(
 		.url_tmpl = url_tmpl_buf,
 		.page_opts = e ? e->page_opts : NULL,
 		.npage = e ? e->npage : 0,
-		.sel = &sel_opt,
-		.nsel = (current_value && current_value[0]) ? 1 : 0,
+		.sel = (e && e->nsel > 0 && e->sel) ? e->sel : &sel_opt,
+		.nsel = (e && e->nsel > 0 && e->sel)
+		                ? e->nsel
+		                : ((current_value && current_value[0]) ? 1 : 0),
 		.q = (e && e->q) ? e->q : "",
 		.page = e ? e->page : 0,
 		.per_page = (e && e->per_page > 0) ? e->per_page : 15,
@@ -664,3 +670,241 @@ bud_node *hyle_bud_filter_scoped(
 
 	return picker;
 }
+
+#ifndef __wasm__
+#include <hyle-source/hyle_source.h>
+
+#define HYLE_BUD_PICK_MAX_POOLS 16
+#define HYLE_BUD_PICK_MAX_OPTS 128
+#define HYLE_BUD_PICK_MAX_SEL 64
+
+static __thread hyle_bud_option_t hyle_bud_v_opts[HYLE_BUD_PICK_MAX_POOLS][HYLE_BUD_PICK_MAX_OPTS];
+static __thread char hyle_bud_v_ids[HYLE_BUD_PICK_MAX_POOLS][HYLE_BUD_PICK_MAX_OPTS][64];
+static __thread char hyle_bud_v_labels[HYLE_BUD_PICK_MAX_POOLS][HYLE_BUD_PICK_MAX_OPTS][256];
+static __thread hyle_bud_option_t hyle_bud_v_sel[HYLE_BUD_PICK_MAX_POOLS][HYLE_BUD_PICK_MAX_SEL];
+static __thread char hyle_bud_v_sel_ids[HYLE_BUD_PICK_MAX_POOLS][HYLE_BUD_PICK_MAX_SEL][64];
+static __thread char hyle_bud_v_sel_labels[HYLE_BUD_PICK_MAX_POOLS][HYLE_BUD_PICK_MAX_SEL][256];
+static __thread char hyle_bud_v_q[HYLE_BUD_PICK_MAX_POOLS][256];
+static __thread int hyle_bud_pool_cursor = 0;
+
+int hyle_bud_picker_view_collect_scoped(
+        const char *qs,
+        const hyle_schema_desc_t *schema,
+        const void *record,
+        hyle_bud_picker_view_t *pv_out,
+        const char *scope)
+{
+	int ri = 0;
+	char buf[64];
+	char skey[128];
+	char pname[256];
+
+	if (!pv_out)
+		return 0;
+	memset(pv_out, 0, sizeof(*pv_out));
+	if (!schema || (qs && strlen(qs) >= HYLE_BUD_PICK_QS_BUDGET))
+		return 0;
+
+	for (const hyle_schema_desc_t *d = schema; d && d->key && ri < HYLE_BUD_PICKER_MAX_FIELDS; d++) {
+		const char *target = d->ref_source;
+		int is_ref = (d->source_type == HYLE_BUD_REFERENCE || d->source_type == HYLE_BUD_MULTI_REFERENCE || target != NULL);
+		if (!is_ref || !target || !target[0])
+			continue;
+		if (d->writable == 0 && d->kind >= 3)
+			continue;
+
+		int slot = (hyle_bud_pool_cursor++) % HYLE_BUD_PICK_MAX_POOLS;
+		hyle_bud_picker_entry_t *e = &pv_out->entries[ri];
+		memset(e, 0, sizeof(*e));
+		e->key = d->key;
+		e->target = target;
+		e->multi = (d->source_type == HYLE_BUD_MULTI_REFERENCE);
+		e->per_page = 15;
+
+		if (scope && scope[0])
+			snprintf(skey, sizeof(skey), "%s__%s", d->key, scope);
+		else
+			snprintf(skey, sizeof(skey), "%s", d->key);
+
+		hyle_bud_v_q[slot][0] = '\0';
+		if (qs && qs[0]) {
+			snprintf(pname, sizeof(pname), "pick_q_%s", skey);
+			hyle_bud_query_param(qs, pname, hyle_bud_v_q[slot], sizeof(hyle_bud_v_q[slot]));
+
+			buf[0] = '\0';
+			snprintf(pname, sizeof(pname), "pick_page_%s", skey);
+			hyle_bud_query_param(qs, pname, buf, sizeof(buf));
+			if (buf[0]) {
+				e->page = atoi(buf);
+				if (e->page < 0)
+					e->page = 0;
+				if (e->page > 10000)
+					e->page = 10000;
+			}
+		}
+		e->q = hyle_bud_v_q[slot];
+
+		int total = 0;
+		int nopts = hyle_source_resolve_options(
+		        target, e->q, e->page, e->per_page,
+		        hyle_bud_v_opts[slot], HYLE_BUD_PICK_MAX_OPTS, &total,
+		        hyle_bud_v_ids[slot], hyle_bud_v_labels[slot]);
+		e->total = total;
+		e->page_opts = hyle_bud_v_opts[slot];
+		e->npage = nopts;
+
+		char draft_val[1024] = { 0 };
+		const char *current_val = "";
+		if (qs && qs[0]) {
+			hyle_bud_query_param(qs, d->key, draft_val, sizeof(draft_val));
+		}
+		if (draft_val[0]) {
+			current_val = draft_val;
+		} else if (record && d->size > 0) {
+			current_val = (const char *)record + d->offset;
+		}
+
+		if (current_val && current_val[0]) {
+			e->nsel = hyle_source_resolve_tokens(
+			        target, current_val, hyle_bud_v_sel[slot], HYLE_BUD_PICK_MAX_SEL,
+			        hyle_bud_v_sel_ids[slot], hyle_bud_v_sel_labels[slot]);
+			e->sel = hyle_bud_v_sel[slot];
+		} else {
+			e->nsel = 0;
+			e->sel = NULL;
+		}
+
+		ri++;
+	}
+
+	pv_out->n = ri;
+	return ri;
+}
+
+int hyle_bud_picker_view_collect_schema(
+        const char *qs,
+        const hyle_schema_desc_t *schema,
+        const void *record,
+        hyle_bud_picker_view_t *pv_out,
+        int *active_scope_out)
+{
+	char scope_str[32] = { 0 };
+	int scope = hyle_bud_pick_find_active_scope(qs, scope_str, sizeof(scope_str));
+	if (active_scope_out)
+		*active_scope_out = scope;
+
+	if (scope >= 0 && scope_str[0]) {
+		return hyle_bud_picker_view_collect_scoped(
+		        qs, schema, record, pv_out, scope_str);
+	}
+	return hyle_bud_picker_view_collect_scoped(
+	        qs, schema, record, pv_out, NULL);
+}
+
+int hyle_bud_picker_view_collect_auto_fields_schema(
+        const char *qs,
+        const hyle_schema_desc_t *schema,
+        hyle_bud_picker_view_t *pv_out,
+        int *active_field_idx_out,
+        int *active_scope_out)
+{
+	if (active_field_idx_out)
+		*active_field_idx_out = -1;
+	if (active_scope_out)
+		*active_scope_out = -1;
+
+	if (!schema || !pv_out)
+		return 0;
+
+	if (!qs || !qs[0])
+		return 0;
+
+	int field_idx = 0;
+	for (const hyle_schema_desc_t *d = schema; d && d->key; d++, field_idx++) {
+		const char *fname = d->key;
+		if (!fname || !fname[0])
+			continue;
+
+		/* Scan for pick_q_<fname>_<idx>= or pick_page_<fname>_<idx>= */
+		char prefix_q[64], prefix_p[64];
+		snprintf(prefix_q, sizeof(prefix_q), "pick_q_%s_", fname);
+		snprintf(prefix_p, sizeof(prefix_p), "pick_page_%s_", fname);
+
+		const char *p = strstr(qs, prefix_q);
+		if (p && p != qs && p[-1] != '&' && p[-1] != '?')
+			p = NULL;
+		if (!p) {
+			p = strstr(qs, prefix_p);
+			if (p && p != qs && p[-1] != '&' && p[-1] != '?')
+				p = NULL;
+		}
+
+		if (p) {
+			const char *matched_prefix = (strstr(qs, prefix_q) == p) ? prefix_q : prefix_p;
+			p += strlen(matched_prefix);
+			if (*p >= '0' && *p <= '9') {
+				int idx = atoi(p);
+				if (active_field_idx_out)
+					*active_field_idx_out = field_idx;
+				if (active_scope_out)
+					*active_scope_out = idx;
+
+				char dyn_name[64];
+				snprintf(dyn_name, sizeof(dyn_name), "%s_%d", fname, idx);
+				hyle_schema_desc_t single_schema[] = {
+					{ .key = dyn_name, .source_type = d->source_type,
+					  .ref_source = d->ref_source, .kind = d->kind, .writable = d->writable },
+					{ 0 }
+				};
+				return hyle_bud_picker_view_collect_scoped(qs, single_schema, NULL, pv_out, NULL);
+			}
+		}
+
+		/* Scan for pick_q_<fname>__<scope>= or pick_page_<fname>__<scope>= */
+		char scoped_q[64], scoped_p[64];
+		snprintf(scoped_q, sizeof(scoped_q), "pick_q_%s__", fname);
+		snprintf(scoped_p, sizeof(scoped_p), "pick_page_%s__", fname);
+
+		p = strstr(qs, scoped_q);
+		if (p && p != qs && p[-1] != '&' && p[-1] != '?')
+			p = NULL;
+		if (!p) {
+			p = strstr(qs, scoped_p);
+			if (p && p != qs && p[-1] != '&' && p[-1] != '?')
+				p = NULL;
+		}
+
+		if (p) {
+			const char *matched_scoped = (strstr(qs, scoped_q) == p) ? scoped_q : scoped_p;
+			p += strlen(matched_scoped);
+			int scope = atoi(p);
+			if (active_field_idx_out)
+				*active_field_idx_out = field_idx;
+			if (active_scope_out)
+				*active_scope_out = scope;
+
+			char scope_str[32];
+			snprintf(scope_str, sizeof(scope_str), "%d", scope);
+			hyle_schema_desc_t single_schema[] = {
+				*d,
+				{ 0 }
+			};
+			return hyle_bud_picker_view_collect_scoped(qs, single_schema, NULL, pv_out, scope_str);
+		}
+	}
+
+	/* 2. Check for general ?replace=<scope> */
+	char scope_str[32] = { 0 };
+	int scope = hyle_bud_pick_find_active_scope(qs, scope_str, sizeof(scope_str));
+	if (scope >= 0 && scope_str[0]) {
+		if (active_scope_out)
+			*active_scope_out = scope;
+		if (active_field_idx_out)
+			*active_field_idx_out = 0;
+		return hyle_bud_picker_view_collect_scoped(qs, schema, NULL, pv_out, scope_str);
+	}
+
+	return 0;
+}
+#endif /* !__wasm__ */
+

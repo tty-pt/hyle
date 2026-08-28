@@ -75,7 +75,7 @@ static json_object *hyle_source_build_inverse_array(
 	return ja;
 }
 
-static int hyle_source_build_item_json(
+int hyle_source_build_item_json(
         const hyle_source_def_t *def, const char *item_id, json_object **out_jo)
 {
 	json_object *jo = json_object_new_object();

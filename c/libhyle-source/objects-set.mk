@@ -6,3 +6,4 @@ CFLAGS-meta-o := -fPIC -I../../include -I../../../libqmap/include -I../../../sto
 CFLAGS-dsv-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
 CFLAGS-json-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
 CFLAGS-engine-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include
+CFLAGS-options-o := -fPIC -I../../include -I../../../libqmap/include -I../../../stoma/include

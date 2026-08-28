@@ -6,6 +6,7 @@
 #define HYLE_PICKER_MAX_OPTS 64
 #define HYLE_PICKER_MAX_SEL 64
 #define HYLE_PICKER_MAX_FIELDS 8
+#define HYLE_PICKER_QS_BUDGET 2048
 
 typedef struct {
 	const char *id;

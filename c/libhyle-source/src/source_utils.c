@@ -1,8 +1,10 @@
 #include "source_utils.h"
+#include <hyle-source/hyle_source.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -67,15 +69,70 @@ char *source_util_slurp_file(const char *path)
 
 int source_util_write_file(const char *path, const char *buf, size_t sz)
 {
-	FILE *fp = fopen(path, "w");
-	if (!fp)
+	char tmp_path[PATH_MAX];
+	int fd;
+	ssize_t written;
+
+	if (!path || !path[0])
 		return -1;
-	if (sz > 0 && fwrite(buf, 1, sz, fp) != sz) {
-		fclose(fp);
+
+	snprintf(tmp_path, sizeof(tmp_path), "%s.tmp.%d", path, (int)getpid());
+
+	fd = open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0644);
+	if (fd < 0)
+		return -1;
+
+	if (sz > 0) {
+		written = write(fd, buf, sz);
+		if (written < 0 || (size_t)written != sz) {
+			close(fd);
+			unlink(tmp_path);
+			return -1;
+		}
+	}
+
+	if (fsync(fd) != 0) {
+		close(fd);
+		unlink(tmp_path);
 		return -1;
 	}
-	fclose(fp);
+
+	if (close(fd) != 0) {
+		unlink(tmp_path);
+		return -1;
+	}
+
+	if (rename(tmp_path, path) != 0) {
+		unlink(tmp_path);
+		return -1;
+	}
+
 	return 0;
+}
+
+int hyle_source_is_safe_id(const char *id)
+{
+	return source_util_is_safe_id(id);
+}
+
+char *hyle_source_slurp_file(const char *path)
+{
+	return source_util_slurp_file(path);
+}
+
+int hyle_source_write_file(const char *path, const char *buf, size_t sz)
+{
+	return source_util_write_file(path, buf, sz);
+}
+
+int hyle_source_remove_path_recursive(const char *path)
+{
+	return source_util_remove_path_recursive(path);
+}
+
+const char *hyle_source_resolve_doc_root(char *buf, size_t sz)
+{
+	return source_util_resolve_doc_root(buf, sz);
 }
 
 int source_util_remove_path_recursive(const char *path)
