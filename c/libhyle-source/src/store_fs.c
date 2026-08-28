@@ -13,6 +13,29 @@
 #include <hyle/hyle.h>
 #include <hyle/source.h>
 
+#include <pwd.h>
+
+static int is_disk_perm_env(void)
+{
+	const char *disk_perms = getenv("AUTH_DISK_PERMS");
+	if (disk_perms)
+		return (strcmp(disk_perms, "1") == 0 || strcmp(disk_perms, "true") == 0);
+	if (geteuid() == 0)
+		return 1;
+	const char *env = getenv("AUTH_ENV");
+	if (env && strcmp(env, "prod") == 0)
+		return 1;
+	return 0;
+}
+
+static char *resolve_uid_username(uid_t uid)
+{
+	struct passwd *pw = getpwuid(uid);
+	if (pw && pw->pw_name && pw->pw_name[0])
+		return strdup(pw->pw_name);
+	return NULL;
+}
+
 static int fs_load(hyle_source_store_t *store, const hyle_source_def_t *def,
                    const char *id, unsigned *row_out)
 {
@@ -44,6 +67,11 @@ static int fs_load(hyle_source_store_t *store, const hyle_source_def_t *def,
 	names[k] = "id";
 	values[k] = strcmp(id, id_norm) != 0 ? id_norm : id;
 	k++;
+	if (def->key_field && strcmp(def->key_field, "id") != 0 && k < 64) {
+		names[k] = def->key_field;
+		values[k] = id;
+		k++;
+	}
 	for (size_t i = 0; i < def->field_count && k < 64; i++) {
 		const hyle_source_field_t *f = &def->fields[i];
 		if (strcmp(f->name, "id") == 0)
@@ -53,7 +81,18 @@ static int fs_load(hyle_source_store_t *store, const hyle_source_def_t *def,
 		char file_path[PATH_MAX + 256];
 		snprintf(file_path, sizeof(file_path), "%s/%s", item_path,
 		        f->file);
-		char *data = source_util_slurp_file(file_path);
+		char *data = NULL;
+		if (strcmp(f->name, "owner") == 0) {
+			if (is_disk_perm_env()) {
+				data = resolve_uid_username(st.st_uid);
+			} else {
+				data = source_util_slurp_file(file_path);
+				if (!data)
+					data = resolve_uid_username(st.st_uid);
+			}
+		} else {
+			data = source_util_slurp_file(file_path);
+		}
 		if (data) {
 			hyle_source_internal_process_multi_ref(f, def->id, &data);
 			names[k] = f->name;

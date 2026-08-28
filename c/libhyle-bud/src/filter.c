@@ -48,15 +48,20 @@ static bud_node *hyle_bud_boolean_checkbox(
 	const char *label,
 	const char *current_value)
 {
+	int is_checked = current_value && (
+		strcmp(current_value, "true") == 0 ||
+		strcmp(current_value, "1") == 0 ||
+		strcmp(current_value, "on") == 0
+	);
 	return bud_tpl(
 		"<fieldset>"
 		"  <legend></legend>"
 		"  <label>"
-		"    <input type='checkbox' name='%s' %b/> %s"
+		"    <input type='checkbox' name='%s' value='1' %b/> %s"
 		"  </label>"
 		"</fieldset>",
 		key ? key : "",
-		(current_value && strcmp(current_value, "true") == 0) ? "checked" : NULL,
+		is_checked ? "checked" : NULL,
 		label ? label : ""
 	);
 }
@@ -668,9 +673,24 @@ bud_node *hyle_bud_filter_from_schema(
 	}
 
 	/* Derive display label */
-	if (field_name[0] >= 'a' && field_name[0] <= 'z') {
-		snprintf(auto_label, sizeof(auto_label), "%c%s",
-		         field_name[0] - 32, field_name + 1);
+	if (field_name && field_name[0]) {
+		size_t bi = 0;
+		int cap_next = 1;
+		for (size_t i = 0; field_name[i] && bi + 1 < sizeof(auto_label); i++) {
+			char c = field_name[i];
+			if (c == '_' || c == '-') {
+				if (bi > 0 && auto_label[bi - 1] != ' ')
+					auto_label[bi++] = ' ';
+				cap_next = 1;
+			} else if (cap_next && c >= 'a' && c <= 'z') {
+				auto_label[bi++] = c - 32;
+				cap_next = 0;
+			} else {
+				auto_label[bi++] = c;
+				cap_next = 0;
+			}
+		}
+		auto_label[bi] = '\0';
 		label = auto_label;
 	}
 

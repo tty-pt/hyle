@@ -10,32 +10,29 @@
 
 static const char *hyle_bud_field_label(const char *key, char *buf, size_t sz)
 {
-	if (!key || !key[0])
+	if (!key || !key[0] || sz < 2)
 		return "";
-	if (strcmp(key, "title") == 0)
-		return "Title:";
-	if (strcmp(key, "type") == 0)
-		return "Type:";
-	if (strcmp(key, "author") == 0)
-		return "Author:";
-	if (strcmp(key, "yt") == 0)
-		return "Youtube ID:";
-	if (strcmp(key, "audio") == 0)
-		return "Audio URL:";
-	if (strcmp(key, "pdf") == 0)
-		return "PDF URL:";
-	if (strcmp(key, "data") == 0)
-		return "Chords/Lyrics:";
-	if (strcmp(key, "format") == 0)
-		return "Format:";
-	if (strcmp(key, "content") == 0)
-		return "Content:";
 
-	/* Capitalize first char */
-	snprintf(
-	        buf, sz, "%c%s:",
-	        (key[0] >= 'a' && key[0] <= 'z') ? key[0] - 32 : key[0],
-	        key + 1);
+	size_t bi = 0;
+	int cap_next = 1;
+
+	for (size_t i = 0; key[i] && bi + 2 < sz; i++) {
+		char c = key[i];
+		if (c == '_' || c == '-') {
+			if (bi > 0 && buf[bi - 1] != ' ')
+				buf[bi++] = ' ';
+			cap_next = 1;
+		} else if (cap_next && c >= 'a' && c <= 'z') {
+			buf[bi++] = c - 32;
+			cap_next = 0;
+		} else {
+			buf[bi++] = c;
+			cap_next = 0;
+		}
+	}
+	if (bi + 1 < sz)
+		buf[bi++] = ':';
+	buf[bi] = '\0';
 	return buf;
 }
 
@@ -146,26 +143,80 @@ bud_node *hyle_bud_form(
 		int is_ref = (d->source_type == HYLE_BUD_REFERENCE ||
 		              d->source_type == HYLE_BUD_MULTI_REFERENCE ||
 		              d->ref_source != NULL);
+		const char *req_attr = d->required ? "required" : NULL;
 
 		if (is_ref && (!val || strlen(val) < HYLE_BUD_PICK_QS_BUDGET)) {
 			ctl = hyle_bud_filter(schema, d->key, val, pv);
 			has_ref = 1;
 			if (!first_ref)
 				first_ref = d->key;
+		} else if (d->is_int || d->source_type == HYLE_BUD_INT) {
+			int int_val = 0;
+			if (record && d->size >= sizeof(int))
+				int_val = *(const int *)((const char *)record + d->offset);
+			ctl = bud_tpl(
+				"<input type='number' name='%s' value='%d' %b/>",
+				d->key, int_val, req_attr);
+		} else if (d->source_type == HYLE_BUD_BOOL) {
+			int bool_val = 0;
+			if (record && d->size >= sizeof(int))
+				bool_val = *(const int *)((const char *)record + d->offset);
+			ctl = bud_tpl(
+				"<input type='checkbox' name='%s' value='1' %b %b/>",
+				d->key,
+				bool_val ? "checked" : NULL,
+				req_attr);
 		} else if (d->qm_type == BUD_QM_VSTR || strcmp(d->key, "format") == 0) {
-			ctl = bud_tpl(
-				"<textarea name='%s' class='font-mono w-full'>%node</textarea>",
-				d->key,
-				hyle_bud_textarea_value(val)
-			);
+			if (d->min_length > 0) {
+				ctl = bud_tpl(
+					"<textarea name='%s' class='font-mono w-full' minlength='%zu' %b>%node</textarea>",
+					d->key, d->min_length, req_attr,
+					hyle_bud_textarea_value(val)
+				);
+			} else {
+				ctl = bud_tpl(
+					"<textarea name='%s' class='font-mono w-full' %b>%node</textarea>",
+					d->key, req_attr,
+					hyle_bud_textarea_value(val)
+				);
+			}
 		} else if (d->file && !strstr(d->file, ".txt") && !strstr(d->file, ".html")) {
-			ctl = bud_tpl("<input type='file' name='%s'/>", d->key);
+			ctl = bud_tpl("<input type='file' name='%s' %b/>", d->key, req_attr);
 		} else {
-			ctl = bud_tpl(
-				"<input type='text' name='%s' value='%s'/>",
-				d->key,
-				(val && val[0]) ? val : ""
-			);
+			size_t max_len = (d->size > 1) ? d->size - 1 : 0;
+			if (d->min_length > 0 && max_len > 0) {
+				ctl = bud_tpl(
+					"<input type='text' name='%s' value='%s' minlength='%zu' maxlength='%zu' %b/>",
+					d->key,
+					(val && val[0]) ? val : "",
+					d->min_length,
+					max_len,
+					req_attr
+				);
+			} else if (max_len > 0) {
+				ctl = bud_tpl(
+					"<input type='text' name='%s' value='%s' maxlength='%zu' %b/>",
+					d->key,
+					(val && val[0]) ? val : "",
+					max_len,
+					req_attr
+				);
+			} else if (d->min_length > 0) {
+				ctl = bud_tpl(
+					"<input type='text' name='%s' value='%s' minlength='%zu' %b/>",
+					d->key,
+					(val && val[0]) ? val : "",
+					d->min_length,
+					req_attr
+				);
+			} else {
+				ctl = bud_tpl(
+					"<input type='text' name='%s' value='%s' %b/>",
+					d->key,
+					(val && val[0]) ? val : "",
+					req_attr
+				);
+			}
 		}
 
 		if (ctl) {

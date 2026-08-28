@@ -125,7 +125,7 @@ unsigned hyle_source_register(
 		qmap_close(e->row_hd);
 		e->row_hd = 0;
 	}
-	e->row_hd = qmap_open(NULL, NULL, QM_STR, val_type, 0x3FF, flags);
+	e->row_hd = qmap_open(NULL, NULL, QM_STR, QM_STR, 0x3FF, flags);
 	if (!e->row_hd)
 		return 0;
 	e->row_owned = 1;
