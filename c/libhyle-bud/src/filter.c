@@ -629,7 +629,7 @@ bud_node *hyle_bud_filter_field(
 				return hyle_bud_checkbox_fieldset(
 				        key, label, current_value, options,
 				        noptions);
-			/* "select" (explicit) or absent → native <select> */
+			/* "select" (explicit) or absent -> native <select> */
 			return hyle_bud_reference_select(
 			        key, label, current_value, options, noptions);
 		}
@@ -637,4 +637,84 @@ bud_node *hyle_bud_filter_field(
 	default:
 		return hyle_bud_text_input(key, label, current_value);
 	}
+}
+
+bud_node *hyle_bud_filter_from_schema(
+	const hyle_schema_desc_t *desc,
+	const char *field_name,
+	const char *current_value,
+	const hyle_bud_option_t *options,
+	int noptions)
+{
+	const hyle_schema_desc_t *d;
+	char auto_label[128];
+	const char *label = field_name;
+
+	if (!desc || !field_name || !field_name[0])
+		return NULL;
+
+	/* Look up field in schema */
+	for (d = desc; d && d->key; d++) {
+		if (strcmp(d->key, field_name) == 0)
+			break;
+	}
+
+	if (!d || !d->key) {
+		/* Not explicitly found in schema, default to text search */
+		return hyle_bud_text_input(field_name, field_name, current_value);
+	}
+
+	/* Derive display label */
+	if (field_name[0] >= 'a' && field_name[0] <= 'z') {
+		snprintf(auto_label, sizeof(auto_label), "%c%s",
+		         field_name[0] - 32, field_name + 1);
+		label = auto_label;
+	}
+
+	return hyle_bud_filter_field(
+	        d->key, label, d->source_type, current_value, options, noptions,
+	        d->filter_style ? d->filter_style : "dropdown");
+}
+
+bud_node *hyle_bud_filter(
+	const hyle_schema_desc_t *desc,
+	const char *field_name,
+	const char *current_value,
+	const hyle_bud_picker_view_t *pv)
+{
+	return hyle_bud_filter_scoped(
+	        desc, field_name, -1, current_value, current_value, NULL, pv,
+	        0, NULL, NULL);
+}
+
+bud_node *hyle_bud_filter_group(
+	const hyle_schema_desc_t *desc,
+	const char **field_names,
+	int n_fields,
+	const char *current_qs,
+	const hyle_bud_picker_view_t *pv)
+{
+	bud_node *frag = bud_fragment();
+	char val_buf[512];
+	int i;
+
+	if (!desc || !field_names || n_fields <= 0)
+		return frag;
+
+	for (i = 0; i < n_fields; i++) {
+		const char *fname = field_names[i];
+		if (!fname || !fname[0])
+			continue;
+
+		val_buf[0] = '\0';
+		if (current_qs) {
+			hyle_bud_query_param(current_qs, fname, val_buf, sizeof(val_buf));
+		}
+
+		bud_node *node = hyle_bud_filter(desc, fname, val_buf, pv);
+		if (node)
+			bud_append(frag, node);
+	}
+
+	return frag;
 }

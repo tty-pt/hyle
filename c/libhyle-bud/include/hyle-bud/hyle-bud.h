@@ -49,6 +49,49 @@ bud_node *hyle_bud_filter_field(
 	int noptions,
 	const char *filter_style);
 
+/*
+ * Schema-Driven Generic Filter Component (Entity Pattern)
+ */
+
+/* Schema-driven generic filter component: automatically draws the correct
+ * UI component (search input, boolean checkbox, single-reference dropdown,
+ * multi-reference facet dropdown, or omnisearch picker) directly from a field
+ * in a schema descriptor. */
+bud_node *hyle_bud_filter(
+	const hyle_schema_desc_t *desc,
+	const char *field_name,
+	const char *current_value,
+	const hyle_bud_picker_view_t *pv);
+
+bud_node *hyle_bud_filter_from_schema(
+	const hyle_schema_desc_t *desc,
+	const char *field_name,
+	const char *current_value,
+	const hyle_bud_option_t *options,
+	int noptions);
+
+/* Scoped / Indexed variant for repeated rows, tables, or cards:
+ * (e.g. scope = 0 -> field_0, pickq-field_0, pick_q_field_0) */
+bud_node *hyle_bud_filter_scoped(
+	const hyle_schema_desc_t *desc,
+	const char *field_name,
+	int scope,
+	const char *current_value,
+	const char *current_label,
+	const char *get_action,
+	const hyle_bud_picker_view_t *pv,
+	int is_active,
+	const char *extra_class,
+	bud_node **sibling_forms_out);
+
+/* Generic filter group / bar builder from a schema and list of filter field names */
+bud_node *hyle_bud_filter_group(
+	const hyle_schema_desc_t *desc,
+	const char **field_names,
+	int n_fields,
+	const char *current_qs,
+	const hyle_bud_picker_view_t *pv);
+
 /* Multi-select dropdown widget (SSR-first, WASM-enhanced).
  * filter_style "dropdown" selects it for HYLE_BUD_MULTI_REFERENCE fields. */
 void hyle_bud_ms_reset(void);

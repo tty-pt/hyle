@@ -549,3 +549,118 @@ int hyle_bud_pick_find_active_scope(const char *qs, char *scope_buf, size_t scop
 	}
 	return -1;
 }
+
+bud_node *hyle_bud_filter_scoped(
+	const hyle_schema_desc_t *desc,
+	const char *field_name,
+	int scope,
+	const char *current_value,
+	const char *current_label,
+	const char *get_action,
+	const hyle_bud_picker_view_t *pv,
+	int is_active,
+	const char *extra_class,
+	bud_node **sibling_forms_out)
+{
+	const hyle_schema_desc_t *d = NULL;
+	char dyn_key[64];
+	char form_id[64];
+	char search_param[64], page_param[64];
+	const char *target = NULL;
+	int multi = 0;
+
+	if (!field_name || !field_name[0])
+		return NULL;
+
+	if (desc) {
+		for (const hyle_schema_desc_t *scan = desc; scan && scan->key; scan++) {
+			if (strcmp(scan->key, field_name) == 0) {
+				d = scan;
+				break;
+			}
+		}
+	}
+
+	const hyle_bud_picker_entry_t *e = NULL;
+	if (pv && pv->n > 0) {
+		for (int pi = 0; pi < pv->n; pi++) {
+			if (pv->entries[pi].key && strcmp(pv->entries[pi].key, field_name) == 0) {
+				e = &pv->entries[pi];
+				break;
+			}
+		}
+		if (!e && is_active)
+			e = &pv->entries[0];
+	}
+	hyle_bud_option_t sel_opt = {
+		.id = current_value,
+		.label = (current_label && current_label[0]) ? current_label : current_value
+	};
+
+	if (d) {
+		target = d->ref_source ? d->ref_source : d->key;
+		multi = (d->source_type == HYLE_BUD_MULTI_REFERENCE);
+	} else if (e && e->target) {
+		target = e->target;
+		multi = e->multi;
+	} else {
+		target = field_name;
+	}
+
+	if (scope >= 0) {
+		snprintf(dyn_key, sizeof(dyn_key), "%s_%d", field_name, scope);
+		snprintf(form_id, sizeof(form_id), "pickq-%s_%d", field_name, scope);
+		snprintf(search_param, sizeof(search_param), "pick_q_%s_%d", field_name, scope);
+		snprintf(page_param, sizeof(page_param), "pick_page_%s_%d", field_name, scope);
+	} else {
+		snprintf(dyn_key, sizeof(dyn_key), "%s", field_name);
+		snprintf(form_id, sizeof(form_id), "pickq-%s", field_name);
+		snprintf(search_param, sizeof(search_param), "pick_q_%s", field_name);
+		snprintf(page_param, sizeof(page_param), "pick_page_%s", field_name);
+	}
+
+	char url_tmpl_buf[512];
+	snprintf(
+	        url_tmpl_buf, sizeof(url_tmpl_buf),
+	        "/pick/%s/options?key=%s&multi=%d&label=&sel={sel}&%s={q}&%s={page}",
+	        (e && e->target) ? e->target : target, dyn_key, multi ? 1 : 0,
+	        search_param, page_param);
+
+	hyle_bud_picker_desc_t pd = {
+		.key = dyn_key,
+		.label = field_name,
+		.source = (e && e->target) ? e->target : target,
+		.multi = multi,
+		.get_form_id = form_id,
+		.url_tmpl = url_tmpl_buf,
+		.page_opts = e ? e->page_opts : NULL,
+		.npage = e ? e->npage : 0,
+		.sel = &sel_opt,
+		.nsel = (current_value && current_value[0]) ? 1 : 0,
+		.q = (e && e->q) ? e->q : "",
+		.page = e ? e->page : 0,
+		.per_page = (e && e->per_page > 0) ? e->per_page : 15,
+		.total = e ? e->total : 0,
+		.search_param = search_param,
+		.page_param = page_param
+	};
+
+	bud_node *picker = hyle_bud_picker_field(&pd);
+	if (picker && extra_class && extra_class[0]) {
+		bud_add_class(picker, extra_class);
+	}
+
+	if (sibling_forms_out && get_action && get_action[0]) {
+		bud_node *sib = lx_el("form",
+		                      lx_attr("id", form_id),
+		                      lx_attr("action", get_action),
+		                      lx_attr("method", "GET"),
+		                      lx_attr("class", "pick-sibling-form"))
+		                        .data.node;
+		if (!*sibling_forms_out)
+			*sibling_forms_out = bud_fragment();
+		bud_append(*sibling_forms_out, sib);
+	}
+
+	return picker;
+}
