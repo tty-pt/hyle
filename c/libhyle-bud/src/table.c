@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <bud/bud.h>
 #include <hyle-bud/hyle-bud.h>
 
 static void qs_without_sort(char *buf, size_t len, const char *qs)
@@ -65,23 +66,23 @@ bud_node *hyle_bud_table_header(
 		}
 
 		if (active) {
-			const char *up = "\xe2\x96\xb2";
-			const char *dn = "\xe2\x96\xbc";
+			const char *up = "▲";
+			const char *dn = "▼";
 			snprintf(label, sizeof(label), "%s %s",
 				col_labels[i], sort_asc ? up : dn);
 		} else {
 			snprintf(label, sizeof(label), "%s", col_labels[i]);
 		}
 
-		bud_append(tr,
-			lx_el("th",
-				lx_el("a",
-					lx_attr("href", href),
-					lx_attr("class", "hyle-sort-button"),
-					lx_text(label))).data.node);
+		bud_node *th = bud_tpl(
+			"<th><a href='%s' class='hyle-sort-button'>%s</a></th>",
+			href, label
+		);
+		if (th)
+			bud_append(tr, th);
 	}
 
-	return lx_el("thead", lx_node(tr)).data.node;
+	return bud_tpl("<thead>%node</thead>", tr);
 }
 
 static void row_action_append(
@@ -110,24 +111,19 @@ static void row_action_append(
 		else
 			snprintf(href, sizeof(href), "/%s/%s",
 				module, id);
-		el = lx_el("a",
-			lx_attr("class", "hyle-row-action"),
-			lx_attr("href", href),
-			lx_attr("aria-label", aria),
-			text[0] ? lx_text(text) : lx_none()).data.node;
+		el = bud_tpl(
+			"<a class='hyle-row-action' href='%s' aria-label='%s'>%s</a>",
+			href, aria, text
+		);
 	} else if (action->kind == HYLE_ROW_ACTION_SUBMIT) {
-		el = lx_el("button",
-			lx_attr("type", "submit"),
-			lx_attr("class", "hyle-row-action"),
-			action->form_id ?
-				lx_attr("form", action->form_id) :
-				lx_none(),
-			action->field_name ?
-				lx_attr("name", action->field_name) :
-				lx_none(),
-			lx_attr("value", id),
-			lx_attr("aria-label", aria),
-			text[0] ? lx_text(text) : lx_none()).data.node;
+		el = bud_tpl(
+			"<button type='submit' class='hyle-row-action' value='%s' aria-label='%s'>%s</button>",
+			id, aria, text
+		);
+		if (action->form_id)
+			bud_set_attr(el, "form", action->form_id);
+		if (action->field_name)
+			bud_set_attr(el, "name", action->field_name);
 	}
 	if (!el)
 		return;
@@ -165,28 +161,24 @@ static bud_node *table_body_impl(
 
 			if (j == 0) {
 				char item_href[512];
-				bud_node *td, *a;
 				snprintf(item_href, sizeof(item_href),
 					"/%s/%s", module, ids[i]);
-				td = lx_el("td",
-					lx_attr("data-label",
-						col_labels[j])).data.node;
-				a = lx_el("a",
-					lx_attr("href", item_href),
-					lx_text(fval)).data.node;
+				bud_node *td = bud_tpl(
+					"<td data-label='%s'><a href='%s'>%s</a></td>",
+					col_labels[j], item_href, fval
+				);
 				if (!td)
 					continue;
-				if (a)
-					bud_append(td, a);
 				row_action_append(td, action, ids[i],
 					fval, module);
 				bud_append(tr, td);
 			} else {
-				bud_append(tr,
-					lx_el("td",
-						lx_attr("data-label",
-							col_labels[j]),
-						lx_text(fval)).data.node);
+				bud_node *td = bud_tpl(
+					"<td data-label='%s'>%s</td>",
+					col_labels[j], fval
+				);
+				if (td)
+					bud_append(tr, td);
 			}
 		}
 		bud_append(tbody, tr);
@@ -226,11 +218,16 @@ static bud_node *table_impl(
 		col_keys, col_labels, ncols, ids, nids, values, module,
 		action);
 
-	return lx_el("div",
-		lx_attr("class", "hyle-table-wrap"),
-		lx_el("table",
-			h ? lx_node(h) : lx_none(),
-			b ? lx_node(b) : lx_none())).data.node;
+	return bud_tpl(
+		"<div class='hyle-table-wrap'>"
+		"  <table>"
+		"    %node"
+		"    %node"
+		"  </table>"
+		"</div>",
+		h,
+		b
+	);
 }
 
 bud_node *hyle_bud_table(
@@ -277,7 +274,6 @@ bud_node *hyle_bud_pagination(
 		? (total + per_page - 1) / per_page
 		: 1;
 	char tmp_prev[64], tmp_next[64], tmp_text[64];
-	char tmp_per_val[64], tmp_per_label[64];
 	char row_count_text[64];
 
 	(void)qs;
@@ -299,48 +295,34 @@ bud_node *hyle_bud_pagination(
 		     k < sizeof(per_page_opts) / sizeof(per_page_opts[0]);
 		     k++)
 		{
-			snprintf(tmp_per_val, sizeof(tmp_per_val), "%d",
-				per_page_opts[k]);
-			snprintf(tmp_per_label, sizeof(tmp_per_label),
-				"%d / page", per_page_opts[k]);
-			bud_append(sel,
-				lx_el("option",
-					lx_attr("value", tmp_per_val),
-					per_page_opts[k] == per_page
-						? lx_attr("selected", "")
-						: lx_none(),
-					lx_text(tmp_per_label)).data.node);
+			bud_node *opt = bud_tpl(
+				"<option value='%d' %b>%d / page</option>",
+				per_page_opts[k],
+				per_page_opts[k] == per_page ? "selected" : NULL,
+				per_page_opts[k]
+			);
+			if (opt)
+				bud_append(sel, opt);
 		}
 	}
 
-	return lx_el("div",
-		lx_attr("class", "hyle-table-footer"),
-		lx_el("div",
-			lx_attr("class", "hyle-pagination"),
-			lx_el("button",
-				lx_attr("type", "submit"),
-				lx_attr("name", "page"),
-				lx_attr("value", tmp_prev),
-				page <= 1
-					? lx_attr("disabled", "")
-					: lx_none(),
-				lx_text("← Prev")),
-			lx_el("span",
-				lx_attr("class", "text-sm"),
-				lx_text(tmp_text)),
-			lx_el("button",
-				lx_attr("type", "submit"),
-				lx_attr("name", "page"),
-				lx_attr("value", tmp_next),
-				page >= last_page
-					? lx_attr("disabled", "")
-					: lx_none(),
-				lx_text("Next →")),
-			sel ? lx_node(sel) : lx_none(),
-			lx_el("button",
-				lx_attr("type", "submit"),
-				lx_text("Apply"))),
-		lx_el("span",
-			lx_attr("class", "hyle-row-count"),
-			lx_text(row_count_text))).data.node;
+	return bud_tpl(
+		"<div class='hyle-table-footer'>"
+		"  <div class='hyle-pagination'>"
+		"    <button type='submit' name='page' value='%s' %b>← Prev</button>"
+		"    <span class='text-sm'>%s</span>"
+		"    <button type='submit' name='page' value='%s' %b>Next →</button>"
+		"    %node"
+		"    <button type='submit'>Apply</button>"
+		"  </div>"
+		"  <span class='hyle-row-count'>%s</span>"
+		"</div>",
+		tmp_prev,
+		page <= 1 ? "disabled" : NULL,
+		tmp_text,
+		tmp_next,
+		page >= last_page ? "disabled" : NULL,
+		sel,
+		row_count_text
+	);
 }

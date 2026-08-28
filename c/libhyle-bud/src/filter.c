@@ -48,20 +48,17 @@ static bud_node *hyle_bud_boolean_checkbox(
 	const char *label,
 	const char *current_value)
 {
-	bud_node *legend = bud_element("legend");
-	bud_node *cb = lx_el("input",
-		lx_attr("type", "checkbox"),
-		lx_attr("name", key),
-		current_value && strcmp(current_value, "true") == 0
-			? lx_attr("checked", "")
-			: lx_none()).data.node;
-	bud_node *lbl = lx_el("label",
-		lx_node(cb),
-		lx_text(label)).data.node;
-
-	return lx_el("fieldset",
-		legend ? lx_node(legend) : lx_none(),
-		lx_node(lbl)).data.node;
+	return bud_tpl(
+		"<fieldset>"
+		"  <legend></legend>"
+		"  <label>"
+		"    <input type='checkbox' name='%s' %b/> %s"
+		"  </label>"
+		"</fieldset>",
+		key ? key : "",
+		(current_value && strcmp(current_value, "true") == 0) ? "checked" : NULL,
+		label ? label : ""
+	);
 }
 
 static bud_node *hyle_bud_checkbox_fieldset(
@@ -73,29 +70,32 @@ static bud_node *hyle_bud_checkbox_fieldset(
 {
 	const char *selected[1024];
 	int nselected;
-	bud_node *legend;
 	bud_node *fs;
 	int i;
 
 	nselected = hyle_bud_comma_split(current_value, selected, 1024);
 
-	legend = lx_el("legend", lx_text(label)).data.node;
-	fs = lx_el("fieldset",
-		lx_attr("class", "hyle-checkbox-filter"),
-		lx_node(legend)).data.node;
+	fs = bud_tpl(
+		"<fieldset class='hyle-checkbox-filter'>"
+		"  <legend>%s</legend>"
+		"</fieldset>",
+		label ? label : ""
+	);
 
 	for (i = 0; i < noptions; i++) {
 		int checked =
 		        hyle_bud_is_selected(selected, nselected, options[i].id);
-		bud_node *cb = lx_el("input",
-			lx_attr("type", "checkbox"),
-			lx_attr("name", key),
-			lx_attr("value", options[i].id),
-			checked ? lx_attr("checked", "") : lx_none()).data.node;
-		bud_node *lbl = lx_el("label",
-			lx_node(cb),
-			lx_text(options[i].label)).data.node;
-		bud_append(fs, lbl);
+		bud_node *lbl = bud_tpl(
+			"<label>"
+			"  <input type='checkbox' name='%s' value='%s' %b/> %s"
+			"</label>",
+			key ? key : "",
+			options[i].id ? options[i].id : "",
+			checked ? "checked" : NULL,
+			options[i].label ? options[i].label : ""
+		);
+		if (lbl)
+			bud_append(fs, lbl);
 	}
 
 	return fs;
@@ -309,62 +309,64 @@ bud_node *hyle_bud_multiselect_field(
 	                 w->noptions, w->checked, label);
 
 	summary_text_node = bud_text(summary_text);
-	summary = lx_el("span",
-		lx_attr("class", "hyle-ms-values"),
-		lx_attr("data-hyle-ms-values", "1"),
-		lx_node(summary_text_node)).data.node;
+	summary = bud_tpl(
+		"<span class='hyle-ms-values' data-hyle-ms-values='1'>%node</span>",
+		summary_text_node
+	);
 	w->summary_values = summary_text_node;
 
-	caption = lx_el("span",
-		lx_attr("class", "hyle-ms-caption"),
-		lx_text(label)).data.node;
+	caption = bud_tpl("<span class='hyle-ms-caption'>%s</span>", label ? label : "");
 
-	container = lx_el("div",
-		lx_attr("class", "hyle-ms-options"),
-		lx_attr("data-hyle-ms-options", "1")).data.node;
+	container = bud_tpl("<div class='hyle-ms-options' data-hyle-ms-options='1'></div>");
 	w->options_container = container;
 
 	for (i = 0; i < w->noptions; i++) {
-		bud_node *cb = lx_el("input",
-			lx_attr("type", "checkbox"),
-			lx_attr("name", key),
-			lx_attr("value", w->opts[i].id),
-			w->checked[i] ? lx_attr("checked", "") : lx_none(),
-			lx_bind("change", 0, hyle_bud_ms_on_change)).data.node;
-		bud_node *row = lx_el("label",
-			lx_attr("class", "hyle-ms-option"),
-			lx_node(cb),
-			lx_text(w->opts[i].label)).data.node;
+		bud_node *cb = bud_tpl(
+			"<input type='checkbox' name='%s' value='%s' %b %bind/>",
+			key ? key : "",
+			w->opts[i].id ? w->opts[i].id : "",
+			w->checked[i] ? "checked" : NULL,
+			"change", hyle_bud_ms_on_change
+		);
+		bud_node *row = bud_tpl(
+			"<label class='hyle-ms-option'>"
+			"  %node %s"
+			"</label>",
+			cb,
+			w->opts[i].label ? w->opts[i].label : ""
+		);
 		w->checkboxes[i] = cb;
 		w->option_rows[i] = row;
 		bud_append(container, row);
 	}
 
-	search = lx_el("input",
-		lx_attr("type", "search"),
-		lx_attr("class", "hyle-ms-search"),
-		lx_attr("data-hyle-ms-search", "1"),
-		lx_attr("placeholder", "Search\xe2\x80\xa6"),
-		lx_attr("aria-label", "Search options"),
-		lx_bind("input", 0, hyle_bud_ms_on_search)).data.node;
+	search = bud_tpl(
+		"<input type='search' class='hyle-ms-search' data-hyle-ms-search='1' placeholder='Search…' aria-label='Search options' %bind/>",
+		"input", hyle_bud_ms_on_search
+	);
 	w->search = search;
 
-	return lx_el("div",
-		lx_attr("class", "hyle-ms-field"),
-		lx_node(caption),
-		lx_el("details",
-			lx_attr("class", "hyle-multiselect"),
-			lx_attr("data-hyle-ms", key),
-			lx_attr("data-hyle-ms-label", label),
-			lx_el("summary", lx_attr("class", "hyle-ms-trigger"),
-				lx_node(summary),
-				lx_el("span", lx_attr("class", "hyle-ms-caret"),
-					lx_attr("aria-hidden", "true"),
-					lx_text("\xe2\x96\xbe"))),
-			lx_el("div", lx_attr("class", "hyle-ms-panel"),
-				lx_attr("data-hyle-ms-panel", "1"),
-				lx_node(search),
-				lx_node(container)))).data.node;
+	return bud_tpl(
+		"<div class='hyle-ms-field'>"
+		"  %node"
+		"  <details class='hyle-multiselect' data-hyle-ms='%s' data-hyle-ms-label='%s'>"
+		"    <summary class='hyle-ms-trigger'>"
+		"      %node"
+		"      <span class='hyle-ms-caret' aria-hidden='true'>▾</span>"
+		"    </summary>"
+		"    <div class='hyle-ms-panel' data-hyle-ms-panel='1'>"
+		"      %node"
+		"      %node"
+		"    </div>"
+		"  </details>"
+		"</div>",
+		caption,
+		key ? key : "",
+		label ? label : "",
+		summary,
+		search,
+		container
+	);
 }
 
 static bud_node *hyle_bud_reference_select(
@@ -377,29 +379,34 @@ static bud_node *hyle_bud_reference_select(
 	char all_label[256];
 	int i;
 
-	snprintf(all_label, sizeof(all_label), "All %ss", label);
+	snprintf(all_label, sizeof(all_label), "All %ss", label ? label : "");
 
-	bud_node *select = lx_el("select",
-		lx_attr("name", key),
-		lx_el("option",
-			lx_attr("value", ""),
-			(!current_value || !current_value[0])
-				? lx_attr("selected", "")
-				: lx_none(),
-			lx_text(all_label))).data.node;
+	bud_node *select = bud_tpl(
+		"<select name='%s'>"
+		"  <option value='' %b>%s</option>"
+		"</select>",
+		key ? key : "",
+		(!current_value || !current_value[0]) ? "selected" : NULL,
+		all_label
+	);
 
 	for (i = 0; i < noptions; i++) {
 		int sel = current_value && strcmp(current_value, options[i].id) == 0;
-		bud_append(select,
-			lx_el("option",
-				lx_attr("value", options[i].id),
-				sel ? lx_attr("selected", "") : lx_none(),
-				lx_text(options[i].label)).data.node);
+		bud_node *opt = bud_tpl(
+			"<option value='%s' %b>%s</option>",
+			options[i].id ? options[i].id : "",
+			sel ? "selected" : NULL,
+			options[i].label ? options[i].label : ""
+		);
+		if (opt)
+			bud_append(select, opt);
 	}
 
-	return lx_el("label",
-		lx_text(label),
-		lx_node(select)).data.node;
+	return bud_tpl(
+		"<label>%s %node</label>",
+		label ? label : "",
+		select
+	);
 }
 
 /* ── Dropdown single-select widget (SSR-first, WASM-enhanced) ─── */
@@ -508,69 +515,67 @@ bud_node *hyle_bud_reference_select_dropdown(
 		snprintf(summary_text, sizeof(summary_text), "All %ss", label);
 
 	summary_text_node = bud_text(summary_text);
-	summary = lx_el("span",
-		lx_attr("class", "hyle-ss-values"),
-		lx_attr("data-hyle-ss-values", "1"),
-		lx_node(summary_text_node)).data.node;
+	summary = bud_tpl(
+		"<span class='hyle-ss-values' data-hyle-ss-values='1'>%node</span>",
+		summary_text_node
+	);
 	w->summary_values = summary_text_node;
 
-	caption = lx_el("span",
-		lx_attr("class", "hyle-ss-caption"),
-		lx_text(label)).data.node;
+	caption = bud_tpl("<span class='hyle-ss-caption'>%s</span>", label ? label : "");
 
-	container = lx_el("div",
-		lx_attr("class", "hyle-ss-options"),
-		lx_attr("data-hyle-ss-options", "1")).data.node;
+	container = bud_tpl("<div class='hyle-ss-options' data-hyle-ss-options='1'></div>");
 	w->options_container = container;
 
 	for (i = 0; i < w->noptions; i++) {
 		int sel =
 		        current_value &&
 		        strcmp(current_value, w->opts[i].id) == 0;
-		bud_node *radio = lx_el("input",
-			lx_attr("type", "radio"),
-			lx_attr("name", key),
-			lx_attr("value", w->opts[i].id),
-			sel ? lx_attr("checked", "") : lx_none(),
-			lx_bind("change", 0,
-			        hyle_bud_ss_on_change)).data.node;
-		bud_node *row = lx_el("label",
-			lx_attr("class", "hyle-ss-option"),
-			lx_node(radio),
-			lx_text(w->opts[i].label)).data.node;
+		bud_node *radio = bud_tpl(
+			"<input type='radio' name='%s' value='%s' %b %bind/>",
+			key ? key : "",
+			w->opts[i].id ? w->opts[i].id : "",
+			sel ? "checked" : NULL,
+			"change", hyle_bud_ss_on_change
+		);
+		bud_node *row = bud_tpl(
+			"<label class='hyle-ss-option'>"
+			"  %node %s"
+			"</label>",
+			radio,
+			w->opts[i].label ? w->opts[i].label : ""
+		);
 		w->radios[i] = radio;
 		w->option_rows[i] = row;
 		bud_append(container, row);
 	}
 
-	search = lx_el("input",
-		lx_attr("type", "search"),
-		lx_attr("class", "hyle-ss-search"),
-		lx_attr("data-hyle-ss-search", "1"),
-		lx_attr("placeholder", "Search\xe2\x80\xa6"),
-		lx_attr("aria-label", "Search options"),
-		lx_bind("input", 0, hyle_bud_ss_on_search)).data.node;
+	search = bud_tpl(
+		"<input type='search' class='hyle-ss-search' data-hyle-ss-search='1' placeholder='Search…' aria-label='Search options' %bind/>",
+		"input", hyle_bud_ss_on_search
+	);
 	w->search = search;
 
-	return lx_el("div",
-		lx_attr("class", "hyle-ss-field"),
-		lx_node(caption),
-		lx_el("details",
-			lx_attr("class", "hyle-singleselect"),
-			lx_attr("data-hyle-ss", key),
-			lx_attr("data-hyle-ss-label", label),
-			lx_el("summary",
-			        lx_attr("class", "hyle-ss-trigger"),
-			        lx_node(summary),
-			        lx_el("span",
-			               lx_attr("class", "hyle-ss-caret"),
-			               lx_attr("aria-hidden", "true"),
-			               lx_text("\xe2\x96\xbe"))),
-			lx_el("div",
-			        lx_attr("class", "hyle-ss-panel"),
-			        lx_attr("data-hyle-ss-panel", "1"),
-			        lx_node(search),
-			        lx_node(container)))).data.node;
+	return bud_tpl(
+		"<div class='hyle-ss-field'>"
+		"  %node"
+		"  <details class='hyle-singleselect' data-hyle-ss='%s' data-hyle-ss-label='%s'>"
+		"    <summary class='hyle-ss-trigger'>"
+		"      %node"
+		"      <span class='hyle-ss-caret' aria-hidden='true'>▾</span>"
+		"    </summary>"
+		"    <div class='hyle-ss-panel' data-hyle-ss-panel='1'>"
+		"      %node"
+		"      %node"
+		"    </div>"
+		"  </details>"
+		"</div>",
+		caption,
+		key ? key : "",
+		label ? label : "",
+		summary,
+		search,
+		container
+	);
 }
 
 bud_node *hyle_bud_text_input(
@@ -578,17 +583,15 @@ bud_node *hyle_bud_text_input(
 	const char *label,
 	const char *current_value)
 {
-	return lx_el("label",
-		lx_attr("class", "filter-field"),
-		lx_text(label),
-		lx_text(":"),
-		lx_el("input",
-			lx_attr("type", "text"),
-			lx_attr("name", key),
-			lx_attr("placeholder", label),
-			current_value && current_value[0]
-				? lx_attr("value", current_value)
-				: lx_none())).data.node;
+	return bud_tpl(
+		"<label class='filter-field'>%s: "
+		"  <input type='text' name='%s' placeholder='%s' value='%s'/>"
+		"</label>",
+		label ? label : "",
+		key ? key : "",
+		label ? label : "",
+		(current_value && current_value[0]) ? current_value : ""
+	);
 }
 
 bud_node *hyle_bud_filter_field(

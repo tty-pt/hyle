@@ -35,31 +35,25 @@ static int picker_is_selected(
 	return 0;
 }
 
-static bud_node *picker_row_input(
-	const hyle_bud_picker_desc_t *d, const char *id)
-{
-	return lx_el("input",
-		lx_attr("type", d->multi ? "checkbox" : "radio"),
-		lx_attr("name", d->key),
-		lx_attr("value", id),
-		picker_is_selected(d, id) ? lx_attr("checked", "")
-					  : lx_none()).data.node;
-}
-
 static bud_node *picker_row(
 	const hyle_bud_picker_desc_t *d, const char *id, const char *label)
 {
-	return lx_el("label",
-		lx_attr("class", "hyle-picker-option"),
-		lx_node(picker_row_input(d, id)),
-		lx_text((label && label[0]) ? label : (id ? id : ""))).data.node;
+	return bud_tpl(
+		"<label class='hyle-picker-option'>"
+		"  <input type='%s' name='%s' value='%s' %b/> %s"
+		"</label>",
+		d->multi ? "checkbox" : "radio",
+		d->key ? d->key : "",
+		id ? id : "",
+		picker_is_selected(d, id) ? "checked" : NULL,
+		(label && label[0]) ? label : (id ? id : "")
+	);
 }
 
 static bud_node *picker_rows_node(
 	const hyle_bud_picker_desc_t *d, int include_pinned)
 {
-	bud_node *rows = lx_el("div",
-		lx_attr("class", "hyle-picker-rows")).data.node;
+	bud_node *rows = bud_tpl("<div class='hyle-picker-rows'></div>");
 	int count = 0;
 	int i;
 
@@ -69,11 +63,13 @@ static bud_node *picker_rows_node(
 		for (i = 0; i < d->nsel; i++) {
 			if (!d->sel[i].id)
 				continue;
-			bud_append(rows,
-			        picker_row(d, d->sel[i].id,
-			                (d->sel[i].label && d->sel[i].label[0]) ? d->sel[i].label
-			                                                        : d->sel[i].id));
-			count++;
+			bud_node *r = picker_row(d, d->sel[i].id,
+			        (d->sel[i].label && d->sel[i].label[0]) ? d->sel[i].label
+			                                                : d->sel[i].id);
+			if (r) {
+				bud_append(rows, r);
+				count++;
+			}
 		}
 	}
 
@@ -84,19 +80,20 @@ static bud_node *picker_rows_node(
 		if (include_pinned && picker_is_selected(d,
 		            d->page_opts[i].id))
 			continue;
-		bud_append(rows,
-		        picker_row(d, d->page_opts[i].id,
-		                (d->page_opts[i].label && d->page_opts[i].label[0]) ? d->page_opts[i].label
-		                                                                    : d->page_opts[i].id));
-		count++;
+		bud_node *r = picker_row(d, d->page_opts[i].id,
+		        (d->page_opts[i].label && d->page_opts[i].label[0]) ? d->page_opts[i].label
+		                                                            : d->page_opts[i].id);
+		if (r) {
+			bud_append(rows, r);
+			count++;
+		}
 	}
 
-	if (!count)
-		bud_append(rows,
-		        lx_el("div",
-		                lx_attr("class", "hyle-picker-empty"),
-		                lx_text("No matches"))
-		                .data.node);
+	if (!count) {
+		bud_node *empty = bud_tpl("<div class='hyle-picker-empty'>No matches</div>");
+		if (empty)
+			bud_append(rows, empty);
+	}
 	return rows;
 }
 
@@ -121,10 +118,10 @@ static bud_node *picker_values_node(const hyle_bud_picker_desc_t *d)
 		shown++;
 	}
 
-	return lx_el("span",
-		lx_attr("class", "hyle-picker-values"),
-		lx_attr("data-hyle-slot", "values"),
-		lx_text(summary)).data.node;
+	return bud_tpl(
+		"<span class='hyle-picker-values' data-hyle-slot='values'>%s</span>",
+		summary
+	);
 }
 
 static bud_node *picker_search_node(const hyle_bud_picker_desc_t *d)
@@ -139,14 +136,15 @@ static bud_node *picker_search_node(const hyle_bud_picker_desc_t *d)
 	snprintf(aria, sizeof(aria), "Search %s",
 	        d->label ? d->label : "options");
 
-	return lx_el("input",
-		lx_attr("type", "search"),
-		lx_attr("name", name),
-		lx_attr("class", "hyle-picker-search"),
-		d->get_form_id ? lx_attr("form", d->get_form_id) : lx_none(),
-		d->q && d->q[0] ? lx_attr("value", d->q) : lx_none(),
-		lx_attr("placeholder", "Search\xe2\x80\xa6"),
-		lx_attr("aria-label", aria)).data.node;
+	bud_node *inp = bud_tpl(
+		"<input type='search' name='%s' class='hyle-picker-search' value='%s' placeholder='Search…' aria-label='%s'/>",
+		name,
+		(d->q && d->q[0]) ? d->q : "",
+		aria
+	);
+	if (inp && d->get_form_id)
+		bud_set_attr(inp, "form", d->get_form_id);
+	return inp;
 }
 
 static bud_node *picker_paging_node(const hyle_bud_picker_desc_t *d)
@@ -158,8 +156,7 @@ static bud_node *picker_paging_node(const hyle_bud_picker_desc_t *d)
 	/* Dual-mode pagination: these buttons are the no-JS engine
 	 * (GET round-trips through the sibling form); enhanced containers
 	 * hide this block via CSS (.hyle-frag-active). */
-	paging = lx_el("div",
-		lx_attr("class", "hyle-picker-paging")).data.node;
+	paging = bud_tpl("<div class='hyle-picker-paging'></div>");
 	if (!d->get_form_id)
 		return paging;
 
@@ -170,44 +167,38 @@ static bud_node *picker_paging_node(const hyle_bud_picker_desc_t *d)
 
 	if (d->page > 0) {
 		snprintf(value, sizeof(value), "%d", d->page - 1);
-		bud_append(paging,
-		        lx_el("button",
-		                lx_attr("type", "button"),
-		                lx_attr("form", d->get_form_id),
-		                lx_attr("name", name),
-		                lx_attr("value", value),
-		                lx_attr("class", "hyle-picker-page-btn"),
-		                lx_attr("aria-label", "Previous page"),
-		                lx_text("\xe2\x80\xb9"))
-		                .data.node);
+		bud_node *btn = bud_tpl(
+			"<button type='button' form='%s' name='%s' value='%s' class='hyle-picker-page-btn' aria-label='Previous page'>‹</button>",
+			d->get_form_id, name, value
+		);
+		if (btn)
+			bud_append(paging, btn);
 	}
 	if (d->per_page > 0 && (d->page + 1) * d->per_page < d->total) {
 		snprintf(value, sizeof(value), "%d", d->page + 1);
-		bud_append(paging,
-		        lx_el("button",
-		                lx_attr("type", "button"),
-		                lx_attr("form", d->get_form_id),
-		                lx_attr("name", name),
-		                lx_attr("value", value),
-		                lx_attr("class", "hyle-picker-page-btn"),
-		                lx_attr("aria-label", "Next page"),
-		                lx_text("\xe2\x80\xba"))
-		                .data.node);
+		bud_node *btn = bud_tpl(
+			"<button type='button' form='%s' name='%s' value='%s' class='hyle-picker-page-btn' aria-label='Next page'>›</button>",
+			d->get_form_id, name, value
+		);
+		if (btn)
+			bud_append(paging, btn);
 	}
 	return paging;
 }
 
 static bud_node *picker_panel_node(const hyle_bud_picker_desc_t *d)
 {
-	return lx_el("div",
-		lx_attr("class", "hyle-picker-panel"),
-		lx_attr("data-hyle-slot", "panel"),
-		lx_node(picker_search_node(d)),
-		lx_node(picker_rows_node(d, 1)),
-		lx_el("div",
-			lx_attr("class", "hyle-picker-more"),
-			lx_attr("data-hyle-frag-sentinel", "")),
-		lx_node(picker_paging_node(d))).data.node;
+	return bud_tpl(
+		"<div class='hyle-picker-panel' data-hyle-slot='panel'>"
+		"  %node"
+		"  %node"
+		"  <div class='hyle-picker-more' data-hyle-frag-sentinel=''></div>"
+		"  %node"
+		"</div>",
+		picker_search_node(d),
+		picker_rows_node(d, 1),
+		picker_paging_node(d)
+	);
 }
 
 bud_node *hyle_bud_picker_field(const hyle_bud_picker_desc_t *d)
@@ -236,26 +227,31 @@ bud_node *hyle_bud_picker_field(const hyle_bud_picker_desc_t *d)
 		url_tmpl = auto_url_tmpl;
 	}
 
-	return lx_el("div",
-		lx_attr("class", "hyle-picker"),
-		lx_attr("data-hyle-picker", ""),
-		lx_attr("data-hyle-picker-key", d->key),
-		d->source ? lx_attr("data-hyle-picker-source", d->source)
-		          : lx_none(),
-		lx_attr("data-hyle-picker-multi", d->multi ? "1" : "0"),
-		url_tmpl ? lx_attr("data-hyle-frag-url", url_tmpl)
-			 : lx_none(),
-		lx_el("details",
-			lx_attr("class", "hyle-picker-details"),
-			(d->q && d->q[0]) ? lx_attr("open", "") : lx_none(),
-			lx_el("summary",
-				lx_attr("class", "hyle-picker-trigger"),
-				lx_node(picker_values_node(d)),
-				lx_el("span",
-					lx_attr("class", "hyle-picker-caret"),
-					lx_attr("aria-hidden", "true"),
-					lx_text("\xe2\x96\xbe"))),
-			lx_node(picker_panel_node(d)))).data.node;
+	bud_node *picker = bud_tpl(
+		"<div class='hyle-picker' data-hyle-picker='' data-hyle-picker-key='%s' data-hyle-picker-multi='%d'>"
+		"  <details class='hyle-picker-details' %b>"
+		"    <summary class='hyle-picker-trigger'>"
+		"      %node"
+		"      <span class='hyle-picker-caret' aria-hidden='true'>▾</span>"
+		"    </summary>"
+		"    %node"
+		"  </details>"
+		"</div>",
+		d->key,
+		d->multi ? 1 : 0,
+		(d->q && d->q[0]) ? "open" : NULL,
+		picker_values_node(d),
+		picker_panel_node(d)
+	);
+
+	if (picker) {
+		if (d->source && d->source[0])
+			bud_set_attr(picker, "data-hyle-picker-source", d->source);
+		if (url_tmpl && url_tmpl[0])
+			bud_set_attr(picker, "data-hyle-frag-url", url_tmpl);
+	}
+
+	return picker;
 }
 
 /* Serialize a tree to a caller buffer as HTML. bud_render_html
@@ -657,12 +653,11 @@ bud_node *hyle_bud_filter_scoped(
 	}
 
 	if (sibling_forms_out && get_action && get_action[0]) {
-		bud_node *sib = lx_el("form",
-		                      lx_attr("id", form_id),
-		                      lx_attr("action", get_action),
-		                      lx_attr("method", "GET"),
-		                      lx_attr("class", "pick-sibling-form"))
-		                        .data.node;
+		bud_node *sib = bud_tpl(
+			"<form id='%s' action='%s' method='GET' class='pick-sibling-form'></form>",
+			form_id,
+			get_action
+		);
 		if (!*sibling_forms_out)
 			*sibling_forms_out = bud_fragment();
 		bud_append(*sibling_forms_out, sib);

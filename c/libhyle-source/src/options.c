@@ -367,3 +367,101 @@ int hyle_source_get_enum_options(
 
 	return nopts;
 }
+
+static void extract_datalist_id(const char *in, char *out, size_t sz)
+{
+	const char *lb = strrchr(in, '[');
+	const char *rb = strrchr(in, ']');
+	if (!lb || !rb || rb <= lb + 1) {
+		lb = strrchr(in, '(');
+		rb = strrchr(in, ')');
+	}
+	if (lb && rb && rb > lb + 1) {
+		size_t len = rb - lb - 1;
+		if (len < sz) {
+			memcpy(out, lb + 1, len);
+			out[len] = '\0';
+			return;
+		}
+	}
+	snprintf(out, sz, "%s", in);
+}
+
+int hyle_source_ordered_sync_form_custom(
+	const char *source_id,
+	const char *partition_id,
+	const char *amount_param,
+	const char *remove_param_prefix,
+	const hyle_ordered_field_sync_t *fields,
+	size_t n_fields,
+	hyle_field_getter_fn get_field,
+	void *user)
+{
+	char amt_buf[16] = { 0 };
+	int amount = 0;
+
+	if (!source_id || !partition_id || !fields || n_fields == 0 || !get_field)
+		return -1;
+
+	if (get_field(amount_param ? amount_param : "amount", amt_buf, sizeof(amt_buf), user) > 0)
+		amount = atoi(amt_buf);
+
+	hyle_source_ordered_clear(source_id, partition_id);
+
+	for (int i = 0; i < amount; i++) {
+		char rem_name[64];
+		char rem_val[16];
+		snprintf(rem_name, sizeof(rem_name), "%s_%d",
+			remove_param_prefix ? remove_param_prefix : "remove", i);
+		if (get_field(rem_name, rem_val, sizeof(rem_val), user) > 0 && rem_val[0] && strcmp(rem_val, "0") != 0)
+			continue;
+
+		char row_vals[16][128];
+		const char *names[16];
+		const char *vals[16];
+		int valid = 1;
+
+		for (size_t f = 0; f < n_fields && f < 16; f++) {
+			char fld_name[64];
+			snprintf(fld_name, sizeof(fld_name), "%s_%d", fields[f].form_field_prefix, i);
+			char raw_val[128] = { 0 };
+			if (get_field(fld_name, raw_val, sizeof(raw_val), user) > 0) {
+				if (fields[f].is_primary_key) {
+					extract_datalist_id(raw_val, row_vals[f], sizeof(row_vals[f]));
+					if (!row_vals[f][0]) {
+						valid = 0;
+						break;
+					}
+					/* Auto-resolve partition references if any */
+					unsigned song_fhd = hyle_source_get_fields_hd("song.items");
+					unsigned repo_fhd = hyle_source_get_fields_hd("grp.songs");
+					if (song_fhd && repo_fhd && qmap_pos(song_fhd, row_vals[f]) == QM_MISS) {
+						uint32_t rp = qmap_pos(repo_fhd, row_vals[f]);
+						if (rp != QM_MISS) {
+							const char *rs = qmap_field_get(repo_fhd, row_vals[f], "song");
+							if (rs && rs[0])
+								snprintf(row_vals[f], sizeof(row_vals[f]), "%s", rs);
+						}
+					}
+				} else {
+					snprintf(row_vals[f], sizeof(row_vals[f]), "%s", raw_val);
+				}
+			} else {
+				if (fields[f].is_primary_key) {
+					valid = 0;
+					break;
+				}
+				snprintf(row_vals[f], sizeof(row_vals[f]), "%s",
+					fields[f].default_value ? fields[f].default_value : "");
+			}
+			names[f] = fields[f].schema_field_name;
+			vals[f] = row_vals[f];
+		}
+
+		if (valid) {
+			hyle_source_ordered_append(source_id, partition_id, names, vals, n_fields);
+		}
+	}
+	hyle_source_ordered_save(source_id, partition_id);
+	return 0;
+}

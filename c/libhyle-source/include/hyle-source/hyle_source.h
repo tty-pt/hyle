@@ -350,4 +350,21 @@ const char *hyle_source_resolve_doc_root(char *buf, size_t sz);
 int hyle_source_internal_process_multi_ref(
     const hyle_source_field_t *f, const char *dataset_id, char **data);
 
+typedef struct {
+	const char *form_field_prefix;
+	const char *schema_field_name;
+	const char *default_value;
+	int is_primary_key;
+} hyle_ordered_field_sync_t;
+
+int hyle_source_ordered_sync_form_custom(
+    const char *source_id,
+    const char *partition_id,
+    const char *amount_param,
+    const char *remove_param_prefix,
+    const hyle_ordered_field_sync_t *fields,
+    size_t n_fields,
+    hyle_field_getter_fn get_field,
+    void *user);
+
 #endif

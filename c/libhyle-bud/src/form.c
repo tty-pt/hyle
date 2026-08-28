@@ -5,7 +5,6 @@
 #include <limits.h>
 
 #include <bud/bud.h>
-#include <bud/bud_jsx.h>
 #include <bud/bud_app.h>
 #include <hyle-bud/hyle-bud.h>
 
@@ -104,12 +103,9 @@ bud_node *hyle_bud_form(
 		return NULL;
 
 	if (csrf_token && csrf_token[0]) {
-		bud_append(
-		        fields_frag,
-		        lx_el("input", lx_attr("type", "hidden"),
-		              lx_attr("name", "csrf_token"),
-		              lx_attr("value", csrf_token))
-		                .data.node);
+		bud_node *csrf = bud_tpl("<input type='hidden' name='csrf_token' value='%s'/>", csrf_token);
+		if (csrf)
+			bud_append(fields_frag, csrf);
 	}
 
 	for (const hyle_schema_desc_t *d = schema; d && d->key; d++) {
@@ -157,50 +153,50 @@ bud_node *hyle_bud_form(
 			if (!first_ref)
 				first_ref = d->key;
 		} else if (d->qm_type == BUD_QM_VSTR || strcmp(d->key, "format") == 0) {
-			ctl = lx_el("textarea",
-			            lx_attr("name", d->key),
-			            lx_attr("class", "font-mono w-full"),
-			            lx_node(hyle_bud_textarea_value(val)))
-			              .data.node;
+			ctl = bud_tpl(
+				"<textarea name='%s' class='font-mono w-full'>%node</textarea>",
+				d->key,
+				hyle_bud_textarea_value(val)
+			);
 		} else if (d->file && !strstr(d->file, ".txt") && !strstr(d->file, ".html")) {
-			ctl = lx_el("input",
-			            lx_attr("type", "file"),
-			            lx_attr("name", d->key))
-			              .data.node;
+			ctl = bud_tpl("<input type='file' name='%s'/>", d->key);
 		} else {
-			ctl = lx_el("input",
-			            lx_attr("type", "text"),
-			            lx_attr("name", d->key),
-			            (val && val[0]) ? lx_attr("value", val) : lx_none())
-			              .data.node;
+			ctl = bud_tpl(
+				"<input type='text' name='%s' value='%s'/>",
+				d->key,
+				(val && val[0]) ? val : ""
+			);
 		}
 
 		if (ctl) {
-			bud_append(
-			        fields_frag,
-			        lx_el("label", lx_text(label), lx_node(ctl)).data.node);
+			bud_node *field_lbl = bud_tpl(
+				"<label>%s %node</label>",
+				label,
+				ctl
+			);
+			if (field_lbl)
+				bud_append(fields_frag, field_lbl);
 		}
 	}
 
 	/* Form actions */
-	bud_node *actions = lx_el("div", lx_attr("class", "flex gap-2"),
-	                          lx_el("button", lx_attr("type", "submit"),
-	                                lx_attr("class", "btn btn-primary"),
-	                                lx_text(submit_label ? submit_label : "Save")),
-	                          cancel_href ? lx_el("a", lx_attr("href", cancel_href),
-	                                              lx_attr("class", "btn btn-secondary"),
-	                                              lx_text("Cancel"))
-	                                      : lx_none())
-	                        .data.node;
+	bud_node *actions = bud_tpl(
+		"<div class='flex gap-2'>"
+		"  <button type='submit' class='btn btn-primary'>%s</button>"
+		"  %node"
+		"</div>",
+		submit_label ? submit_label : "Save",
+		(cancel_href && cancel_href[0]) ? bud_tpl("<a href='%s' class='btn btn-secondary'>Cancel</a>", cancel_href) : NULL
+	);
 	bud_append(fields_frag, actions);
 
-	bud_node *form = lx_el("form",
-	                       lx_attr("action", action ? action : ""),
-	                       lx_attr("method", "POST"),
-	                       lx_attr("enctype", "multipart/form-data"),
-	                       lx_attr("class", "flex flex-col gap-4"),
-	                       lx_node(fields_frag))
-	                 .data.node;
+	bud_node *form = bud_tpl(
+		"<form action='%s' method='POST' enctype='multipart/form-data' class='flex flex-col gap-4'>"
+		"  %node"
+		"</form>",
+		action ? action : "",
+		fields_frag
+	);
 
 	if (has_ref && first_ref) {
 		char form_id[192];
@@ -230,31 +226,30 @@ bud_node *hyle_bud_form(
 			if (budget < 0)
 				break;
 
-			bud_append(
-			        hiddens,
-			        lx_el("input", lx_attr("type", "hidden"),
-			              lx_attr("name", d->key), lx_attr("value", val))
-			                .data.node);
+			bud_node *h = bud_tpl("<input type='hidden' name='%s' value='%s'/>", d->key, val);
+			if (h)
+				bud_append(hiddens, h);
 		}
 
-		bud_append(
-		        hiddens,
-		        lx_el("input", lx_attr("type", "hidden"),
-		              lx_attr("name", "per_page"), lx_attr("value", "50"))
-		                .data.node);
+		bud_node *pp = bud_tpl("<input type='hidden' name='per_page' value='50'/>");
+		if (pp)
+			bud_append(hiddens, pp);
 
-		bud_node *sib = lx_el("form",
-		                      lx_attr("id", form_id),
-		                      lx_attr("action", action ? action : ""),
-		                      lx_attr("method", "GET"),
-		                      lx_attr("class", "pick-sibling-form"),
-		                      lx_node(hiddens))
-		                .data.node;
+		bud_node *sib = bud_tpl(
+			"<form id='%s' action='%s' method='GET' class='pick-sibling-form'>"
+			"  %node"
+			"</form>",
+			form_id,
+			action ? action : "",
+			hiddens
+		);
 
-		bud_node *both = bud_fragment();
-		bud_append(both, form);
-		bud_append(both, sib);
-		return both;
+		return bud_tpl(
+			"%node"
+			"%node",
+			form,
+			sib
+		);
 	}
 
 	return form;
