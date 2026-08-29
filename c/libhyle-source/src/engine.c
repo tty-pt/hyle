@@ -65,6 +65,21 @@ hyle_source_def_t *hyle_source_find(const char *dataset_id)
 	return (hyle_source_def_t *)hyle_source_get_user(dataset_id);
 }
 
+int hyle_source_is_creatable(const char *dataset_id)
+{
+	if (!dataset_id || !dataset_id[0])
+		return 0;
+	const hyle_source_def_t *def = hyle_source_find(dataset_id);
+	if (!def)
+		return 0;
+	if (def->flags & HYLE_SOURCE_FLAG_CREATABLE)
+		return 1;
+	/* Tag/catalog dictionary datasets with key_field and without a custom list_view are creatable */
+	if (def->key_field && def->key_field[0] && !def->list_view)
+		return 1;
+	return 0;
+}
+
 int hyle_source_item_exists(
         const char *dataset_id,
         const char *item_id)
@@ -227,32 +242,30 @@ source_ensure_entity(const char *ref_source, const char *display_name)
 {
 	hyle_source_def_t *target;
 	char slug[64];
-	const char *ename;
-	const char *evalue;
-	size_t ecount;
 
 	if (!ref_source || !display_name || !display_name[0])
 		return;
 	target = hyle_source_find(ref_source);
-	if (!target || !target->fields_hd)
+	if (!target)
 		return;
 	source_util_slugify(display_name, strlen(display_name), slug, sizeof(slug));
 	if (!slug[0])
 		return;
-	if (qmap_get(target->fields_hd, slug))
-		return;
 
-	ename = target->key_field;
-	evalue = display_name;
-	ecount = ename ? 1 : 0;
-	hyle_source_put(target->id, slug, &ename, &evalue, ecount);
+	const char *fname =
+	        target->key_field ? target->key_field : "name";
+	if (target->fields_hd) {
+		const char *existing =
+		        qmap_field_get(target->fields_hd, slug, fname);
+		if (existing && existing[0])
+			return;
+	}
 
 	if (target->store.ops && target->store.ops->put_field) {
-		const char *fname =
-		        target->key_field ? target->key_field : "name";
 		target->store.ops->put_field(
 		        (hyle_source_store_t *)&target->store, target, slug, fname, display_name);
 	}
+	hyle_source_refresh_row(0, target->id, slug);
 }
 
 static void
@@ -365,7 +378,9 @@ int hyle_source_internal_process_multi_ref(
 {
 	if (!f || !dataset_id || !data || !*data || !(*data)[0])
 		return 0;
-	if (f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE || !f->target_source)
+	if ((f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
+	     f->type != HYLE_SOURCE_FIELD_REFERENCE) ||
+	    !f->target_source)
 		return 0;
 	source_ensure_tokens(f->target_source, *data);
 	size_t len = strlen(*data);

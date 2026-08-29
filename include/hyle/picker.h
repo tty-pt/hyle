@@ -26,6 +26,7 @@ typedef struct {
 	int page, per_page, total;
 	const char *search_param;/* custom search input name; NULL defaults to "pick_q_<key>" */
 	const char *page_param;  /* custom page input name; NULL defaults to "pick_page_<key>" */
+	int allow_add;           /* 1 = inline record creation enabled (catalog/tag datasets), 0 = selection only */
 } hyle_picker_desc_t;
 
 typedef struct {
@@ -39,6 +40,7 @@ typedef struct {
 	const hyle_option_t *sel;       int nsel;
 	const char *q;
 	int page, per_page, total;
+	int allow_add;
 } hyle_picker_entry_t;
 
 typedef struct {

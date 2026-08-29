@@ -109,7 +109,7 @@ static bud_node *hyle_bud_checkbox_fieldset(
 /* ── Multi-select dropdown widget (SSR-first, WASM-enhanced) ──── */
 
 #define HYLE_BUD_MS_MAX 8
-#define HYLE_BUD_MS_MAX_OPTS 256
+#define HYLE_BUD_MS_MAX_OPTS 1024
 
 typedef struct {
 	const char *key;                    /* field key (name=key) */

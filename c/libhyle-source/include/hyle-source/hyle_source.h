@@ -93,6 +93,7 @@ typedef struct hyle_source_def_s {
 typedef int (*hyle_source_each_cb_t)(const hyle_source_def_t *, void *);
 
 #define HYLE_SOURCE_FLAG_VOLATILE 64u
+#define HYLE_SOURCE_FLAG_CREATABLE 128u
 #define HYLE_SOURCE_ERR_VALIDATION -2
 
 /* ── State JSON builder ─────────────────────────────────────────── */
@@ -158,6 +159,7 @@ int hyle_source_build_state_specs(
     int max_specs);
 
 hyle_source_def_t *hyle_source_find(const char *dataset_id);
+int hyle_source_is_creatable(const char *dataset_id);
 
 int hyle_source_item_exists(
     const char *dataset_id,

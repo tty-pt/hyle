@@ -99,6 +99,11 @@ static int fs_load(hyle_source_store_t *store, const hyle_source_def_t *def,
 			values[k] = data;
 			k++;
 			bufs[nb++] = data;
+		} else if (f->required && f->file) {
+			/* Missing required field file on disk - skip invalid record */
+			for (size_t b = 0; b < nb; b++)
+				free(bufs[b]);
+			return -1;
 		}
 	}
 	int rc = hyle_source_put(def->id, id, names, values, k);
@@ -149,6 +154,9 @@ static int fs_put(hyle_source_store_t *store, const hyle_source_def_t *def,
 		return -1;
 	char doc_root[256] = { 0 };
 	const char *root = source_util_resolve_doc_root(doc_root, sizeof(doc_root));
+	char parent_path[PATH_MAX];
+	snprintf(parent_path, sizeof(parent_path), "%s/%s", root, items_path);
+	mkdir(parent_path, 0755);
 	char item_path[PATH_MAX];
 	snprintf(item_path, sizeof(item_path), "%s/%s/%s", root,
 	        items_path, id);
@@ -196,8 +204,14 @@ static int fs_put_field(hyle_source_store_t *store, const hyle_source_def_t *def
 		return -1;
 	char doc_root[256] = { 0 };
 	const char *root = source_util_resolve_doc_root(doc_root, sizeof(doc_root));
+	char parent_path[PATH_MAX];
+	snprintf(parent_path, sizeof(parent_path), "%s/%s", root, items_path);
+	mkdir(parent_path, 0755);
+	char item_path[PATH_MAX];
+	snprintf(item_path, sizeof(item_path), "%s/%s/%s", root, items_path, id);
+	mkdir(item_path, 0755);
 	char file_path[PATH_MAX + 256];
-	snprintf(file_path, sizeof(file_path), "%s/%s/%s/%s", root, items_path, id, field);
+	snprintf(file_path, sizeof(file_path), "%s/%s", item_path, field);
 	size_t vlen = value ? strlen(value) : 0;
 	return source_util_write_file(file_path, value ? value : "", vlen);
 }

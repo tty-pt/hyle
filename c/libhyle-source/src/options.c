@@ -173,6 +173,7 @@ int hyle_source_resolve_tokens(
 		const char *comma = strpbrk(p, ",\n\r");
 		size_t len = comma ? (size_t)(comma - p) : strlen(p);
 		char token[128];
+		char slug_buf[128] = { 0 };
 		const char *slug = NULL;
 
 		if (len >= sizeof(token))
@@ -196,7 +197,6 @@ int hyle_source_resolve_tokens(
 					slug = NULL;
 			}
 			if (!slug) {
-				char slug_buf[128];
 				source_util_slugify(
 				        ttrim, strlen(ttrim), slug_buf,
 				        sizeof(slug_buf));
@@ -213,10 +213,10 @@ int hyle_source_resolve_tokens(
 					        qmap_pos(fields_hd, ttrim));
 			}
 			if (!slug) {
-				char slug_buf[128];
-				source_util_slugify(
-				        ttrim, strlen(ttrim), slug_buf,
-				        sizeof(slug_buf));
+				if (!slug_buf[0])
+					source_util_slugify(
+					        ttrim, strlen(ttrim), slug_buf,
+					        sizeof(slug_buf));
 				if (slug_buf[0])
 					slug = slug_buf;
 			}
@@ -224,10 +224,10 @@ int hyle_source_resolve_tokens(
 				slug = ttrim;
 
 			snprintf(id_buf[n], sizeof(id_buf[n]), "%.60s", slug);
-			const char *name = hyle_source_get_item_label(
-			        dataset_id, slug, display_field, label_buf[n], sizeof(label_buf[n]));
+			hyle_source_get_item_label(
+			        dataset_id, id_buf[n], display_field, label_buf[n], sizeof(label_buf[n]));
 			out[n].id = id_buf[n];
-			out[n].label = name;
+			out[n].label = label_buf[n];
 			n++;
 		}
 		if (!comma)

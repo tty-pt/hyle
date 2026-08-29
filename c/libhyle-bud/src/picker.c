@@ -50,12 +50,14 @@ static bud_node *picker_row(
 	);
 }
 
-static bud_node *picker_rows_node(
-	const hyle_bud_picker_desc_t *d, int include_pinned)
+static int picker_populate_rows(
+	const hyle_bud_picker_desc_t *d, bud_node *parent, int include_pinned)
 {
-	bud_node *rows = bud_tpl("<div class='hyle-picker-rows'></div>");
 	int count = 0;
 	int i;
+
+	if (!parent)
+		return 0;
 
 	if (include_pinned) {
 		/* Pinned selections are ALWAYS emitted regardless of
@@ -67,7 +69,7 @@ static bud_node *picker_rows_node(
 			        (d->sel[i].label && d->sel[i].label[0]) ? d->sel[i].label
 			                                                : d->sel[i].id);
 			if (r) {
-				bud_append(rows, r);
+				bud_append(parent, r);
 				count++;
 			}
 		}
@@ -84,12 +86,21 @@ static bud_node *picker_rows_node(
 		        (d->page_opts[i].label && d->page_opts[i].label[0]) ? d->page_opts[i].label
 		                                                            : d->page_opts[i].id);
 		if (r) {
-			bud_append(rows, r);
+			bud_append(parent, r);
 			count++;
 		}
 	}
 
-	if (!count) {
+	return count;
+}
+
+static bud_node *picker_rows_node(
+	const hyle_bud_picker_desc_t *d, int include_pinned)
+{
+	bud_node *rows = bud_tpl("<div class='hyle-picker-rows'></div>");
+	int count = picker_populate_rows(d, rows, include_pinned);
+
+	if (!count && rows) {
 		bud_node *empty = bud_tpl("<div class='hyle-picker-empty'>No matches</div>");
 		if (empty)
 			bud_append(rows, empty);
@@ -186,16 +197,37 @@ static bud_node *picker_paging_node(const hyle_bud_picker_desc_t *d)
 	return paging;
 }
 
+static bud_node *picker_add_node(const hyle_bud_picker_desc_t *d)
+{
+	if (!d || !d->allow_add || !d->source || !d->source[0] || !d->q || !d->q[0])
+		return NULL;
+
+	return bud_tpl(
+		"<div class='hyle-picker-add'>"
+		"  <button type='button' class='hyle-picker-add-btn' data-hyle-picker-add='' "
+		"data-hyle-picker-key='%s' data-hyle-picker-source='%s' data-hyle-picker-name='%s'>"
+		"+ Add “%s”"
+		"  </button>"
+		"</div>",
+		d->key ? d->key : "",
+		d->source ? d->source : "",
+		d->q,
+		d->q
+	);
+}
+
 static bud_node *picker_panel_node(const hyle_bud_picker_desc_t *d)
 {
 	return bud_tpl(
 		"<div class='hyle-picker-panel' data-hyle-slot='panel'>"
 		"  %node"
 		"  %node"
+		"  %node"
 		"  <div class='hyle-picker-more' data-hyle-frag-sentinel=''></div>"
 		"  %node"
 		"</div>",
 		picker_search_node(d),
+		picker_add_node(d),
 		picker_rows_node(d, 1),
 		picker_paging_node(d)
 	);
@@ -222,8 +254,8 @@ bud_node *hyle_bud_picker_field(const hyle_bud_picker_desc_t *d)
 			snprintf(pp, sizeof(pp), "pick_page_%s", d->key);
 
 		snprintf(auto_url_tmpl, sizeof(auto_url_tmpl),
-		        "/pick/%s/options?key=%s&multi=%d&label=&sel={sel}&%s={q}&%s={page}",
-		        d->source, d->key, d->multi ? 1 : 0, sp, pp);
+		        "/pick/%s/options?key=%s&multi=%d&add=%d&label=&sel={sel}&%s={q}&%s={page}",
+		        d->source, d->key, d->multi ? 1 : 0, d->allow_add ? 1 : 0, sp, pp);
 		url_tmpl = auto_url_tmpl;
 	}
 
@@ -245,6 +277,8 @@ bud_node *hyle_bud_picker_field(const hyle_bud_picker_desc_t *d)
 	);
 
 	if (picker) {
+		if (d->allow_add)
+			bud_set_attr(picker, "data-hyle-picker-addable", "1");
 		if (d->source && d->source[0])
 			bud_set_attr(picker, "data-hyle-picker-source", d->source);
 		if (url_tmpl && url_tmpl[0])
@@ -292,13 +326,19 @@ void hyle_bud_picker_slots(const hyle_bud_picker_desc_t *d, char *panel,
 void hyle_bud_picker_rows(
 	const hyle_bud_picker_desc_t *d, char *rows, size_t rows_sz)
 {
-	bud_node *n;
+	bud_node *frag;
+	int count;
 
 	if (!rows || !rows_sz)
 		return;
 	rows[0] = '\0';
-	n = picker_rows_node(d, 0);
-	picker_sprint(n, rows, rows_sz);
+	frag = bud_fragment();
+	if (!frag)
+		return;
+	count = picker_populate_rows(d, frag, 0);
+	if (count > 0)
+		picker_sprint(frag, rows, rows_sz);
+	bud_free(frag);
 }
 
 struct parse_user {
@@ -619,11 +659,13 @@ bud_node *hyle_bud_filter_scoped(
 		snprintf(page_param, sizeof(page_param), "pick_page_%s", field_name);
 	}
 
+	int allow_add = e ? e->allow_add : (d ? d->allow_add : 0);
 	char url_tmpl_buf[512];
 	snprintf(
 	        url_tmpl_buf, sizeof(url_tmpl_buf),
-	        "/pick/%s/options?key=%s&multi=%d&label=&sel={sel}&%s={q}&%s={page}",
+	        "/pick/%s/options?key=%s&multi=%d&add=%d&label=&sel={sel}&%s={q}&%s={page}",
 	        (e && e->target) ? e->target : target, dyn_key, multi ? 1 : 0,
+	        allow_add ? 1 : 0,
 	        search_param, page_param);
 
 	hyle_bud_picker_desc_t pd = {
@@ -644,7 +686,8 @@ bud_node *hyle_bud_filter_scoped(
 		.per_page = (e && e->per_page > 0) ? e->per_page : 15,
 		.total = e ? e->total : 0,
 		.search_param = search_param,
-		.page_param = page_param
+		.page_param = page_param,
+		.allow_add = allow_add
 	};
 
 	bud_node *picker = hyle_bud_picker_field(&pd);
@@ -714,6 +757,7 @@ int hyle_bud_picker_view_collect_scoped(
 		e->key = d->key;
 		e->target = target;
 		e->multi = (d->source_type == HYLE_BUD_MULTI_REFERENCE);
+		e->allow_add = (d->allow_add && target) ? hyle_source_is_creatable(target) : 0;
 		e->per_page = 15;
 
 		if (scope && scope[0])
@@ -848,7 +892,8 @@ int hyle_bud_picker_view_collect_auto_fields_schema(
 				snprintf(dyn_name, sizeof(dyn_name), "%s_%d", fname, idx);
 				hyle_schema_desc_t single_schema[] = {
 					{ .key = dyn_name, .source_type = d->source_type,
-					  .ref_source = d->ref_source, .kind = d->kind, .writable = d->writable },
+					  .ref_source = d->ref_source, .kind = d->kind, .writable = d->writable,
+					  .allow_add = d->allow_add },
 					{ 0 }
 				};
 				return hyle_bud_picker_view_collect_scoped(qs, single_schema, NULL, pv_out, NULL);

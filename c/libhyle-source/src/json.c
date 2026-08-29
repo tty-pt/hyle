@@ -198,7 +198,8 @@ int hyle_source_build_state_json(
 					break;
 				}
 			}
-			if (f && f->type == HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
+			if (f && (f->type == HYLE_SOURCE_FIELD_MULTI_REFERENCE ||
+			          f->type == HYLE_SOURCE_FIELD_REFERENCE) &&
 			    f->target_source)
 				hyle_source_resolve_ref_display(jo, def, f, item_id);
 			break;

@@ -26,6 +26,7 @@ typedef struct hyle_schema_desc {
 	const char *filter_style;
 	const char *filter_mode;
 	const char *derive_key;
+	int allow_add;
 } hyle_schema_desc_t;
 
 typedef struct hyle_schema_desc source_desc_t;

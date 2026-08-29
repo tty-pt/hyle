@@ -220,11 +220,20 @@ bud_node *hyle_bud_form(
 		}
 
 		if (ctl) {
-			bud_node *field_lbl = bud_tpl(
-				"<label>%s %node</label>",
-				label,
-				ctl
-			);
+			bud_node *field_lbl;
+			if (is_ref) {
+				field_lbl = bud_tpl(
+					"<div class='hyle-picker-field-group'><span class='hyle-picker-label'>%s</span> %node</div>",
+					label,
+					ctl
+				);
+			} else {
+				field_lbl = bud_tpl(
+					"<label>%s %node</label>",
+					label,
+					ctl
+				);
+			}
 			if (field_lbl)
 				bud_append(fields_frag, field_lbl);
 		}
@@ -249,57 +258,69 @@ bud_node *hyle_bud_form(
 		fields_frag
 	);
 
-	if (has_ref && first_ref) {
-		char form_id[192];
-		snprintf(form_id, sizeof(form_id), "pickq-%s", first_ref);
-		bud_node *hiddens = bud_fragment();
-		long budget = HYLE_BUD_PICK_QS_BUDGET;
+	if (has_ref) {
+		bud_node *sibs = bud_fragment();
 
-		for (const hyle_schema_desc_t *d = schema; d && d->key; d++) {
-			if (strcmp(d->key, "id") == 0 || strcmp(d->key, "owner") == 0)
-				continue;
-			if (!d->writable || d->kind >= 3 || d->kind == 5)
-				continue;
-			if (d->file && !strstr(d->file, ".txt") && !strstr(d->file, ".html"))
+		for (const hyle_schema_desc_t *ref_d = schema; ref_d && ref_d->key; ref_d++) {
+			int is_ref = (ref_d->source_type == HYLE_BUD_REFERENCE ||
+			              ref_d->source_type == HYLE_BUD_MULTI_REFERENCE ||
+			              ref_d->ref_source != NULL);
+			if (!is_ref || !ref_d->writable)
 				continue;
 
-			const char *val = "";
-			if (d->qm_type == BUD_QM_VSTR && vstr_val) {
-				val = vstr_val;
-			} else if (record && d->size > 0 && d->source_type != HYLE_BUD_DERIVED) {
-				val = (const char *)record + d->offset;
+			char form_id[192];
+			snprintf(form_id, sizeof(form_id), "pickq-%s", ref_d->key);
+			bud_node *hiddens = bud_fragment();
+			long budget = HYLE_BUD_PICK_QS_BUDGET;
+
+			for (const hyle_schema_desc_t *d = schema; d && d->key; d++) {
+				if (strcmp(d->key, "id") == 0 || strcmp(d->key, "owner") == 0)
+					continue;
+				if (!d->writable || d->kind >= 3 || d->kind == 5)
+					continue;
+				if (d->file && !strstr(d->file, ".txt") && !strstr(d->file, ".html"))
+					continue;
+
+				const char *val = "";
+				if (d->qm_type == BUD_QM_VSTR && vstr_val) {
+					val = vstr_val;
+				} else if (record && d->size > 0 && d->source_type != HYLE_BUD_DERIVED) {
+					val = (const char *)record + d->offset;
+				}
+
+				if (!val || !val[0])
+					continue;
+
+				budget -= (long)(strlen(d->key) + strlen(val) + 16);
+				if (budget < 0)
+					break;
+
+				bud_node *h = bud_tpl("<input type='hidden' name='%s' value='%s'/>", d->key, val);
+				if (h)
+					bud_append(hiddens, h);
 			}
 
-			if (!val || !val[0])
-				continue;
+			bud_node *pp = bud_tpl("<input type='hidden' name='per_page' value='50'/>");
+			if (pp)
+				bud_append(hiddens, pp);
 
-			budget -= (long)(strlen(d->key) + strlen(val) + 16);
-			if (budget < 0)
-				break;
-
-			bud_node *h = bud_tpl("<input type='hidden' name='%s' value='%s'/>", d->key, val);
-			if (h)
-				bud_append(hiddens, h);
+			bud_node *sib = bud_tpl(
+				"<form id='%s' action='%s' method='GET' class='pick-sibling-form'>"
+				"  %node"
+				"</form>",
+				form_id,
+				action ? action : "",
+				hiddens
+			);
+			if (sib)
+				bud_append(sibs, sib);
 		}
-
-		bud_node *pp = bud_tpl("<input type='hidden' name='per_page' value='50'/>");
-		if (pp)
-			bud_append(hiddens, pp);
-
-		bud_node *sib = bud_tpl(
-			"<form id='%s' action='%s' method='GET' class='pick-sibling-form'>"
-			"  %node"
-			"</form>",
-			form_id,
-			action ? action : "",
-			hiddens
-		);
 
 		return bud_tpl(
 			"%node"
 			"%node",
 			form,
-			sib
+			sibs
 		);
 	}
 
