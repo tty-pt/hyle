@@ -720,6 +720,20 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 	copy->id = strdup(def->id);
 	copy->key_field = strdup(def->key_field);
 	copy->items_path = def->items_path ? strdup(def->items_path) : NULL;
+	copy->display_field[0] = '\0';
+	if (copy->key_field && copy->key_field[0] && strcmp(copy->key_field, "id") != 0) {
+		snprintf(copy->display_field, sizeof(copy->display_field), "%s", copy->key_field);
+	} else if (copy->fields && copy->field_count > 0) {
+		for (size_t fi = 0; fi < copy->field_count; fi++) {
+			const hyle_source_field_t *sf = &copy->fields[fi];
+			if (strcmp(sf->name, "id") == 0 || sf->type == HYLE_SOURCE_FIELD_INVERSE)
+				continue;
+			if (sf->type == HYLE_SOURCE_FIELD_STRING || sf->type == HYLE_SOURCE_FIELD_NULLABLE_STRING) {
+				snprintf(copy->display_field, sizeof(copy->display_field), "%s", sf->name);
+				break;
+			}
+		}
+	}
 	if (def->store.user == def->items_path)
 		copy->store.user = (void *)copy->items_path;
 

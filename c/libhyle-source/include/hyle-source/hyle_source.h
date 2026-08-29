@@ -86,6 +86,7 @@ typedef struct hyle_source_def_s {
 	const hyle_source_desc_t *defs;
 	int def_count;
 	size_t record_size;
+	char display_field[64];
 	void *user;
 	hyle_source_store_t store;
 } hyle_source_def_t;

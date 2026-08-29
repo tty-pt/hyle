@@ -23,6 +23,11 @@ int hyle_source_get_display_field(const char *dataset_id, char *out, size_t sz)
 		return -1;
 
 	def = hyle_source_find(dataset_id);
+	if (def && def->display_field[0]) {
+		snprintf(out, sz, "%s", def->display_field);
+		return 0;
+	}
+
 	if (def && def->key_field && def->key_field[0] && strcmp(def->key_field, "id") != 0) {
 		snprintf(out, sz, "%s", def->key_field);
 		return 0;
@@ -76,8 +81,13 @@ const char *hyle_source_get_item_label(
 	}
 
 	if (!display_field || !display_field[0]) {
-		hyle_source_get_display_field(dataset_id, df_buf, sizeof(df_buf));
-		display_field = df_buf;
+		hyle_source_def_t *def = hyle_source_find(dataset_id);
+		if (def && def->display_field[0]) {
+			display_field = def->display_field;
+		} else {
+			hyle_source_get_display_field(dataset_id, df_buf, sizeof(df_buf));
+			display_field = df_buf;
+		}
 	}
 
 	if (display_field && display_field[0]) {
