@@ -346,7 +346,8 @@ bud_node *hyle_bud_multiselect_field(
 	}
 
 	search = bud_tpl(
-		"<input type='search' class='hyle-ms-search' data-hyle-ms-search='1' placeholder='Search…' aria-label='Search options' %bind/>",
+		"<input type='search' class='hyle-ms-search' data-hyle-ms-search='1' placeholder='%s' aria-label='%s' %bind/>",
+		hyle_bud_tr("Search…"), hyle_bud_tr("Search options"),
 		"input", hyle_bud_ms_on_search
 	);
 	w->search = search;
@@ -555,7 +556,8 @@ bud_node *hyle_bud_reference_select_dropdown(
 	}
 
 	search = bud_tpl(
-		"<input type='search' class='hyle-ss-search' data-hyle-ss-search='1' placeholder='Search…' aria-label='Search options' %bind/>",
+		"<input type='search' class='hyle-ss-search' data-hyle-ss-search='1' placeholder='%s' aria-label='%s' %bind/>",
+		hyle_bud_tr("Search…"), hyle_bud_tr("Search options"),
 		"input", hyle_bud_ss_on_search
 	);
 	w->search = search;

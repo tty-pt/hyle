@@ -1,7 +1,24 @@
+#if __has_include(<json-c/json.h>) && !defined(__wasm__)
 #include <json-c/json.h>
+#endif
 #include <bud/bud.h>
 #include <hyle-bud/hyle-bud.h>
 
+static hyle_bud_translate_fn g_hyle_bud_tr_fn = NULL;
+
+void hyle_bud_set_translator(hyle_bud_translate_fn fn)
+{
+	g_hyle_bud_tr_fn = fn;
+}
+
+const char *hyle_bud_tr(const char *msgid)
+{
+	if (g_hyle_bud_tr_fn && msgid)
+		return g_hyle_bud_tr_fn(msgid);
+	return msgid ? msgid : "";
+}
+
+#if __has_include(<json-c/json.h>) && !defined(__wasm__)
 int hyle_bud_state_overlay_from_desc(
         struct json_object *jo,
         const void *state,
@@ -48,3 +65,4 @@ struct json_object *hyle_bud_state_overlay_array(
 	}
 	return ja;
 }
+#endif

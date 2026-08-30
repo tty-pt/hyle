@@ -144,13 +144,15 @@ static bud_node *picker_search_node(const hyle_bud_picker_desc_t *d)
 		snprintf(name, sizeof(name), "%s", d->search_param);
 	else
 		picker_field_name(name, sizeof(name), "pick_q_", d->key);
-	snprintf(aria, sizeof(aria), "Search %s",
-	        d->label ? d->label : "options");
+	snprintf(aria, sizeof(aria), "%s %s",
+	        hyle_bud_tr("Search"),
+	        d->label ? hyle_bud_tr(d->label) : hyle_bud_tr("options"));
 
 	bud_node *inp = bud_tpl(
-		"<input type='search' name='%s' class='hyle-picker-search' value='%s' placeholder='Search…' aria-label='%s'/>",
+		"<input type='search' name='%s' class='hyle-picker-search' value='%s' placeholder='%s' aria-label='%s'/>",
 		name,
 		(d->q && d->q[0]) ? d->q : "",
+		hyle_bud_tr("Search…"),
 		aria
 	);
 	if (inp && d->get_form_id)

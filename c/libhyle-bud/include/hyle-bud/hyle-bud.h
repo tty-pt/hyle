@@ -34,6 +34,10 @@ void hyle_bud_picker_state_from_json(
 void hyle_bud_picker_state_to_json(
         const hyle_bud_picker_view_t *pv, struct json_object *j_root);
 
+typedef const char *(*hyle_bud_translate_fn)(const char *msgid);
+void hyle_bud_set_translator(hyle_bud_translate_fn fn);
+const char *hyle_bud_tr(const char *msgid);
+
 bud_node *hyle_bud_text_input(
 	const char *key,
 	const char *label,

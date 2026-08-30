@@ -283,9 +283,9 @@ bud_node *hyle_bud_pagination(
 		page > 1 ? page - 1 : 1);
 	snprintf(tmp_next, sizeof(tmp_next), "%d",
 		page < last_page ? page + 1 : last_page);
-	snprintf(tmp_text, sizeof(tmp_text), "Page %d", page);
+	snprintf(tmp_text, sizeof(tmp_text), "%s %d", hyle_bud_tr("Page"), page);
 	snprintf(row_count_text, sizeof(row_count_text),
-		"%d of %d rows", row_count, total);
+		"%d %s %d %s", row_count, hyle_bud_tr("of"), total, hyle_bud_tr("rows"));
 
 	bud_node *sel = bud_element("select");
 	if (sel) {
@@ -297,10 +297,11 @@ bud_node *hyle_bud_pagination(
 		     k++)
 		{
 			bud_node *opt = bud_tpl(
-				"<option value='%d' %b>%d / page</option>",
+				"<option value='%d' %b>%d%s</option>",
 				per_page_opts[k],
 				per_page_opts[k] == per_page ? "selected" : NULL,
-				per_page_opts[k]
+				per_page_opts[k],
+				hyle_bud_tr(" / page")
 			);
 			if (opt)
 				bud_append(sel, opt);
@@ -310,20 +311,23 @@ bud_node *hyle_bud_pagination(
 	return bud_tpl(
 		"<div class='hyle-table-footer'>"
 		"  <div class='hyle-pagination'>"
-		"    <button type='submit' name='page' value='%s' %b>← Prev</button>"
+		"    <button type='submit' name='page' value='%s' %b>%s</button>"
 		"    <span class='text-sm'>%s</span>"
-		"    <button type='submit' name='page' value='%s' %b>Next →</button>"
+		"    <button type='submit' name='page' value='%s' %b>%s</button>"
 		"    %node"
-		"    <button type='submit'>Apply</button>"
+		"    <button type='submit'>%s</button>"
 		"  </div>"
 		"  <span class='hyle-row-count'>%s</span>"
 		"</div>",
 		tmp_prev,
 		page <= 1 ? "disabled" : NULL,
+		hyle_bud_tr("← Prev"),
 		tmp_text,
 		tmp_next,
 		page >= last_page ? "disabled" : NULL,
+		hyle_bud_tr("Next →"),
 		sel,
+		hyle_bud_tr("Apply"),
 		row_count_text
 	);
 }
