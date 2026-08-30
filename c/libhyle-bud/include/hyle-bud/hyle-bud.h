@@ -3,6 +3,7 @@
 
 #include <bud/bud.h>
 #include <bud/bud_jsx.h>
+#include <hyle/field.h>
 #include <hyle/picker.h>
 #include <hyle/schema.h>
 
@@ -11,14 +12,6 @@ void hyle_bud_state_apply(
 void hyle_bud_state_apply_len(
         void *state, const hyle_schema_desc_t *fields, const char *json,
         size_t len);
-
-#define HYLE_BUD_STRING 0
-#define HYLE_BUD_INT 1
-#define HYLE_BUD_BOOL 2
-#define HYLE_BUD_NULLABLE_STRING 3
-#define HYLE_BUD_REFERENCE 4
-#define HYLE_BUD_MULTI_REFERENCE 5
-#define HYLE_BUD_DERIVED 99
 
 typedef hyle_option_t hyle_bud_option_t;
 typedef hyle_picker_desc_t hyle_bud_picker_desc_t;
@@ -112,7 +105,7 @@ bud_node *hyle_bud_filter_group(
 	const hyle_bud_picker_view_t *pv);
 
 /* Multi-select dropdown widget (SSR-first, WASM-enhanced).
- * filter_style "dropdown" selects it for HYLE_BUD_MULTI_REFERENCE fields. */
+ * filter_style "dropdown" selects it for HYLE_FIELD_MULTI_REFERENCE fields. */
 void hyle_bud_ms_reset(void);
 bud_node *hyle_bud_multiselect_field(
 	const char *key,
@@ -122,7 +115,7 @@ bud_node *hyle_bud_multiselect_field(
 	int noptions);
 
 /* Dropdown single-select widget (SSR-first, WASM-enhanced).
- * filter_style "dropdown" selects it for HYLE_BUD_REFERENCE fields. */
+ * filter_style "dropdown" selects it for HYLE_FIELD_REFERENCE fields. */
 bud_node *hyle_bud_reference_select_dropdown(
 	const char *key,
 	const char *label,

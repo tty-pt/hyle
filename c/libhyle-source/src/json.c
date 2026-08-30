@@ -93,25 +93,25 @@ int hyle_source_build_item_json(
 		        qmap_field_get(def->fields_hd, item_id, f->name);
 
 		switch (f->type) {
-		case HYLE_SOURCE_FIELD_STRING:
+		case HYLE_FIELD_STRING:
 			if (val)
 				json_object_object_add(
 				        jo, f->name,
 				        json_object_new_string(val));
 			break;
-		case HYLE_SOURCE_FIELD_NULLABLE_STRING:
+		case HYLE_FIELD_NULLABLE_STRING:
 			if (val && val[0])
 				json_object_object_add(
 				        jo, f->name,
 				        json_object_new_string(val));
 			break;
-		case HYLE_SOURCE_FIELD_INT:
+		case HYLE_FIELD_INT:
 			if (val)
 				json_object_object_add(
 				        jo, f->name,
 				        json_object_new_int(atoi(val)));
 			break;
-		case HYLE_SOURCE_FIELD_BOOL:
+		case HYLE_FIELD_BOOL:
 			if (val)
 				json_object_object_add(
 				        jo, f->name,
@@ -119,20 +119,20 @@ int hyle_source_build_item_json(
 				                strcmp(val, "1") == 0 ||
 				                strcmp(val, "true") == 0));
 			break;
-		case HYLE_SOURCE_FIELD_REFERENCE:
+		case HYLE_FIELD_REFERENCE:
 			if (val)
 				json_object_object_add(
 				        jo, f->name,
 				        json_object_new_string(val));
 			break;
-		case HYLE_SOURCE_FIELD_MULTI_REFERENCE: {
+		case HYLE_FIELD_MULTI_REFERENCE: {
 			json_object *arr = hyle_source_build_string_array(val);
 			json_object_object_add(
 			        jo, f->name,
 			        arr ? arr : json_object_new_array());
 			break;
 		}
-		case HYLE_SOURCE_FIELD_INVERSE: {
+		case HYLE_FIELD_INVERSE: {
 			json_object *arr = hyle_source_build_inverse_array(
 			        def, f, item_id);
 			json_object_object_add(
@@ -140,6 +140,9 @@ int hyle_source_build_item_json(
 			        arr ? arr : json_object_new_array());
 			break;
 		}
+		case HYLE_FIELD_DERIVED:
+		default:
+			break;
 		}
 	}
 
@@ -198,8 +201,8 @@ int hyle_source_build_state_json(
 					break;
 				}
 			}
-			if (f && (f->type == HYLE_SOURCE_FIELD_MULTI_REFERENCE ||
-			          f->type == HYLE_SOURCE_FIELD_REFERENCE) &&
+			if (f && (f->type == HYLE_FIELD_MULTI_REFERENCE ||
+			          f->type == HYLE_FIELD_REFERENCE) &&
 			    f->target_source)
 				hyle_source_resolve_ref_display(jo, def, f, item_id);
 			break;

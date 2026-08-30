@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <json-c/json.h>
+#include <hyle/field.h>
 #include <hyle/schema.h>
 #include <hyle/picker.h>
 #include "store.h"
@@ -20,23 +21,12 @@ typedef enum {
 	HYLE_SOURCE_ACCESS_RESULT_FORBIDDEN,
 } hyle_source_access_result_t;
 
-#define HYLE_SOURCE_FIELD_KIND_INVERSE 5
-
-typedef enum {
-	HYLE_SOURCE_FIELD_STRING = 0,
-	HYLE_SOURCE_FIELD_INT,
-	HYLE_SOURCE_FIELD_BOOL,
-	HYLE_SOURCE_FIELD_NULLABLE_STRING,
-	HYLE_SOURCE_FIELD_REFERENCE,
-	HYLE_SOURCE_FIELD_MULTI_REFERENCE,
-	HYLE_SOURCE_FIELD_INVERSE,
-	HYLE_SOURCE_FIELD_DERIVED = 99,
-} hyle_source_field_type_t;
+#define HYLE_SOURCE_FIELD_KIND_INVERSE HYLE_KIND_INVERSE
 
 typedef struct {
 	const char *name;
 	const char *file;
-	hyle_source_field_type_t type;
+	hyle_field_type_t type;
 	int writable;
 	const char *target_source;
 	const char *inverse_name;

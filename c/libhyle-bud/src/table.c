@@ -43,7 +43,10 @@ bud_node *hyle_bud_table_header(
 	const char *qs)
 {
 	bud_node *tr = bud_element("tr");
+	char without[1024];
 	int i;
+
+	qs_without_sort(without, sizeof(without), qs);
 
 	for (i = 0; i < ncols; i++) {
 		char href[2048];
@@ -51,8 +54,6 @@ bud_node *hyle_bud_table_header(
 		int active = sort_field && strcmp(col_keys[i], sort_field) == 0;
 
 		{
-			char without[1024];
-			qs_without_sort(without, sizeof(without), qs);
 			int new_asc = active ? !sort_asc : 1;
 			if (without[0])
 				snprintf(href, sizeof(href),

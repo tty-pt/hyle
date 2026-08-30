@@ -33,30 +33,6 @@ static void str_trim(char *s)
 	}
 }
 
-static hyle_field_type_t source_to_hyle_type(hyle_source_field_type_t t)
-{
-	switch (t) {
-	case HYLE_SOURCE_FIELD_STRING:
-		return HYLE_FIELD_STRING;
-	case HYLE_SOURCE_FIELD_INT:
-		return HYLE_FIELD_INT;
-	case HYLE_SOURCE_FIELD_BOOL:
-		return HYLE_FIELD_BOOL;
-	case HYLE_SOURCE_FIELD_NULLABLE_STRING:
-		return HYLE_FIELD_NULLABLE_STRING;
-	case HYLE_SOURCE_FIELD_REFERENCE:
-		return HYLE_FIELD_REFERENCE;
-	case HYLE_SOURCE_FIELD_MULTI_REFERENCE:
-		return HYLE_FIELD_MULTI_REFERENCE;
-	case HYLE_SOURCE_FIELD_INVERSE:
-		return HYLE_FIELD_INVERSE;
-	case HYLE_SOURCE_FIELD_DERIVED:
-		return HYLE_FIELD_DERIVED;
-	default:
-		return HYLE_FIELD_STRING;
-	}
-}
-
 
 hyle_source_def_t *hyle_source_find(const char *dataset_id)
 {
@@ -154,7 +130,7 @@ int hyle_source_resolve_ref_display_str(
 			break;
 		}
 	}
-	if (!f || (f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE && f->type != HYLE_SOURCE_FIELD_REFERENCE) || !f->target_source)
+	if (!f || (f->type != HYLE_FIELD_MULTI_REFERENCE && f->type != HYLE_FIELD_REFERENCE) || !f->target_source)
 		return -1;
 
 	val = qmap_field_get(def->fields_hd, item_id, field_name);
@@ -216,8 +192,8 @@ int hyle_source_resolve_meta_display(
 		return -1;
 
 	for (int i = 0; i < count; i++) {
-		if (fields[i].source_type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
-		    fields[i].source_type != HYLE_SOURCE_FIELD_REFERENCE &&
+		if (fields[i].type != HYLE_FIELD_MULTI_REFERENCE &&
+		    fields[i].type != HYLE_FIELD_REFERENCE &&
 		    fields[i].kind != HYLE_SF_REF_DISPLAY)
 			continue;
 		if (!fields[i].key || !fields[i].size)
@@ -378,8 +354,8 @@ int hyle_source_internal_process_multi_ref(
 {
 	if (!f || !dataset_id || !data || !*data || !(*data)[0])
 		return 0;
-	if ((f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
-	     f->type != HYLE_SOURCE_FIELD_REFERENCE) ||
+	if ((f->type != HYLE_FIELD_MULTI_REFERENCE &&
+	     f->type != HYLE_FIELD_REFERENCE) ||
 	    !f->target_source)
 		return 0;
 	source_ensure_tokens(f->target_source, *data);
@@ -440,8 +416,8 @@ static int clear_inv_refs_cb(const hyle_source_def_t *target, void *user)
 
 	for (size_t i = 0; i < target->field_count; i++) {
 		const hyle_source_field_t *f = &target->fields[i];
-		if (f->type != HYLE_SOURCE_FIELD_REFERENCE &&
-		    f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE)
+		if (f->type != HYLE_FIELD_REFERENCE &&
+		    f->type != HYLE_FIELD_MULTI_REFERENCE)
 			continue;
 		if (!f->target_source)
 			continue;
@@ -557,7 +533,7 @@ int hyle_source_validate_row(
 	for (size_t i = 0; i < n; i++) {
 		const hyle_source_field_t *sf = &def->fields[i];
 		hfields[i].name = sf->name;
-		hfields[i].type = source_to_hyle_type(sf->type);
+		hfields[i].type = sf->type;
 		hfields[i].writable = sf->writable;
 		hfields[i].target_source = sf->target_source;
 		hfields[i].inverse_name = sf->inverse_name;
@@ -627,8 +603,8 @@ int hyle_source_update_item(
 	if (def->store.ops && def->store.ops->put) {
 		for (size_t i = 0; i < def->field_count; i++) {
 			const hyle_source_field_t *f = &def->fields[i];
-			if ((f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
-			     f->type != HYLE_SOURCE_FIELD_REFERENCE) ||
+			if ((f->type != HYLE_FIELD_MULTI_REFERENCE &&
+			     f->type != HYLE_FIELD_REFERENCE) ||
 			    !f->target_source)
 				continue;
 			const char *val = qmap_get(data_handle, f->name);
@@ -645,8 +621,8 @@ int hyle_source_update_item(
 	if (result == 0) {
 		for (size_t i = 0; i < def->field_count; i++) {
 			const hyle_source_field_t *f = &def->fields[i];
-			if ((f->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE &&
-			     f->type != HYLE_SOURCE_FIELD_REFERENCE) ||
+			if ((f->type != HYLE_FIELD_MULTI_REFERENCE &&
+			     f->type != HYLE_FIELD_REFERENCE) ||
 			    !f->target_source || !f->file)
 				continue;
 			char display[8192] = { 0 };
@@ -690,7 +666,7 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 	for (i = 0; i < n; i++) {
 		const hyle_source_field_t *sf = &def->fields[i];
 		hf[i].name = sf->name;
-		hf[i].type = source_to_hyle_type(sf->type);
+		hf[i].type = sf->type;
 		hf[i].writable = sf->writable;
 		hf[i].target_source = sf->target_source;
 		hf[i].inverse_name = sf->inverse_name;
@@ -701,9 +677,9 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 		hf[i].max_length = sf->max_length;
 		hf[i].pattern = sf->pattern;
 		hf[i].searchable =
-		        (sf->type == HYLE_SOURCE_FIELD_STRING ||
-		         sf->type == HYLE_SOURCE_FIELD_NULLABLE_STRING ||
-		         sf->type == HYLE_SOURCE_FIELD_DERIVED);
+		        (sf->type == HYLE_FIELD_STRING ||
+		         sf->type == HYLE_FIELD_NULLABLE_STRING ||
+		         sf->type == HYLE_FIELD_DERIVED);
 		hf[i].combine =
 		        (sf->filter_mode && strcmp(sf->filter_mode, "and") == 0)
 		                ? 1
@@ -726,9 +702,9 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 	} else if (copy->fields && copy->field_count > 0) {
 		for (size_t fi = 0; fi < copy->field_count; fi++) {
 			const hyle_source_field_t *sf = &copy->fields[fi];
-			if (strcmp(sf->name, "id") == 0 || sf->type == HYLE_SOURCE_FIELD_INVERSE)
+			if (strcmp(sf->name, "id") == 0 || sf->type == HYLE_FIELD_INVERSE)
 				continue;
-			if (sf->type == HYLE_SOURCE_FIELD_STRING || sf->type == HYLE_SOURCE_FIELD_NULLABLE_STRING) {
+			if (sf->type == HYLE_FIELD_STRING || sf->type == HYLE_FIELD_NULLABLE_STRING) {
 				snprintf(copy->display_field, sizeof(copy->display_field), "%s", sf->name);
 				break;
 			}
@@ -762,8 +738,8 @@ int hyle_source_register_def(const hyle_source_def_t *def)
 			const hyle_source_field_t *sf = &def->fields[i];
 			hyle_source_def_t *target;
 
-			if ((sf->type != HYLE_SOURCE_FIELD_REFERENCE &&
-			     sf->type != HYLE_SOURCE_FIELD_MULTI_REFERENCE) ||
+			if ((sf->type != HYLE_FIELD_REFERENCE &&
+			     sf->type != HYLE_FIELD_MULTI_REFERENCE) ||
 			    !sf->target_source)
 				continue;
 			target = hyle_source_find(sf->target_source);
@@ -811,9 +787,9 @@ unsigned hyle_source_query_dataset(
 					if (strcmp(sdef->fields[sj].name,
 					           f->field) == 0 &&
 					    (sdef->fields[sj].type ==
-					             HYLE_SOURCE_FIELD_MULTI_REFERENCE ||
+					             HYLE_FIELD_MULTI_REFERENCE ||
 					     sdef->fields[sj].type ==
-					             HYLE_SOURCE_FIELD_REFERENCE))
+					             HYLE_FIELD_REFERENCE))
 					{
 						char slug[256];
 						source_util_slugify(
@@ -863,8 +839,8 @@ static unsigned source_build_schema_hd(const hyle_source_def_t *def)
 
 	for (i = 0; i < def->field_count; i++) {
 		f = &def->fields[i];
-		if (f->type == HYLE_SOURCE_FIELD_REFERENCE ||
-		    f->type == HYLE_SOURCE_FIELD_MULTI_REFERENCE)
+		if (f->type == HYLE_FIELD_REFERENCE ||
+		    f->type == HYLE_FIELD_MULTI_REFERENCE)
 		{
 			char mode_suf[20] = "";
 
@@ -891,7 +867,7 @@ static unsigned source_build_schema_hd(const hyle_source_def_t *def)
 				                         : "",
 				        mode_suf);
 			}
-		} else if (f->type == HYLE_SOURCE_FIELD_INVERSE) {
+		} else if (f->type == HYLE_FIELD_INVERSE) {
 			snprintf(
 			        buf, sizeof(buf),
 			        "{\"t\":%d,\"s\":\"%s\",\"i\":\"%s\"}",
@@ -937,6 +913,8 @@ int hyle_source_def_to_qmap(
 			continue;
 		qf[n].name = d->key;
 		qf[n].type = (uint32_t)d->qm_type;
+		if (d->is_array && qf[n].type == QM_REFERENCE)
+			qf[n].type = QM_MULTI_REFERENCE;
 		qf[n].offset = d->offset;
 		qf[n].max_size = d->size;
 		qf[n].target_record = 0;
@@ -955,12 +933,12 @@ int hyle_source_def_to_source_fields(
 	int i;
 	for (i = 0; i < count; i++) {
 		const hyle_source_desc_t *d = &defs[i];
-		if (d->kind == HYLE_SOURCE_FIELD_KIND_INVERSE) {
+		if (d->kind == HYLE_KIND_INVERSE) {
 			if (!d->key || !d->ref_source || !d->ref_inverse)
 				continue;
 			sf[n].name = d->key;
 			sf[n].file = NULL;
-			sf[n].type = HYLE_SOURCE_FIELD_INVERSE;
+			sf[n].type = HYLE_FIELD_INVERSE;
 			sf[n].writable = 0;
 			sf[n].target_source = d->ref_source;
 			sf[n].inverse_name = d->ref_inverse;
@@ -979,9 +957,11 @@ int hyle_source_def_to_source_fields(
 			continue;
 		sf[n].name = d->key;
 		sf[n].file = d->file ? d->file : d->key;
-		if (d->source_type == HYLE_SOURCE_FIELD_DERIVED)
+		if (d->type == HYLE_FIELD_DERIVED)
 			sf[n].file = NULL;
-		sf[n].type = (hyle_source_field_type_t)d->source_type;
+		sf[n].type = d->type;
+		if (d->is_array && sf[n].type == HYLE_FIELD_REFERENCE)
+			sf[n].type = HYLE_FIELD_MULTI_REFERENCE;
 		sf[n].writable = d->writable;
 		sf[n].target_source = d->ref_source;
 		sf[n].inverse_name = d->ref_inverse;
@@ -1200,7 +1180,7 @@ unsigned hyle_source_parse_row_data_custom(
 		if (!f->writable)
 			continue;
 
-		if (f->type == HYLE_SOURCE_FIELD_MULTI_REFERENCE && get_multi) {
+		if (f->type == HYLE_FIELD_MULTI_REFERENCE && get_multi) {
 			int all_len = get_multi(f->name, NULL, 0, user);
 
 			if (all_len > 0) {

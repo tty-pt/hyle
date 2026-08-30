@@ -180,7 +180,7 @@ static int fs_put(hyle_source_store_t *store, const hyle_source_def_t *def,
 			if (content) {
 				free(content);
 			} else if (f->type !=
-			           HYLE_SOURCE_FIELD_MULTI_REFERENCE) {
+			           HYLE_FIELD_MULTI_REFERENCE) {
 				FILE *fp = fopen(file_path, "w");
 				if (fp)
 					fclose(fp);

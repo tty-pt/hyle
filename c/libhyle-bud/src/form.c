@@ -119,7 +119,7 @@ bud_node *hyle_bud_form(
 
 		if (d->qm_type == BUD_QM_VSTR && vstr_val) {
 			val = vstr_val;
-		} else if (record && d->size > 0 && d->source_type != HYLE_BUD_DERIVED) {
+		} else if (record && d->size > 0 && d->type != HYLE_FIELD_DERIVED) {
 			val = (const char *)record + d->offset;
 		}
 
@@ -140,8 +140,8 @@ bud_node *hyle_bud_form(
 		}
 
 		bud_node *ctl = NULL;
-		int is_ref = (d->source_type == HYLE_BUD_REFERENCE ||
-		              d->source_type == HYLE_BUD_MULTI_REFERENCE ||
+		int is_ref = (d->type == HYLE_FIELD_REFERENCE ||
+		              d->type == HYLE_FIELD_MULTI_REFERENCE ||
 		              d->ref_source != NULL);
 		const char *req_attr = d->required ? "required" : NULL;
 
@@ -150,14 +150,14 @@ bud_node *hyle_bud_form(
 			has_ref = 1;
 			if (!first_ref)
 				first_ref = d->key;
-		} else if (d->is_int || d->source_type == HYLE_BUD_INT) {
+		} else if (d->is_int || d->type == HYLE_FIELD_INT) {
 			int int_val = 0;
 			if (record && d->size >= sizeof(int))
 				int_val = *(const int *)((const char *)record + d->offset);
 			ctl = bud_tpl(
 				"<input type='number' name='%s' value='%d' %b/>",
 				d->key, int_val, req_attr);
-		} else if (d->source_type == HYLE_BUD_BOOL) {
+		} else if (d->type == HYLE_FIELD_BOOL) {
 			int bool_val = 0;
 			if (record && d->size >= sizeof(int))
 				bool_val = *(const int *)((const char *)record + d->offset);
@@ -262,8 +262,8 @@ bud_node *hyle_bud_form(
 		bud_node *sibs = bud_fragment();
 
 		for (const hyle_schema_desc_t *ref_d = schema; ref_d && ref_d->key; ref_d++) {
-			int is_ref = (ref_d->source_type == HYLE_BUD_REFERENCE ||
-			              ref_d->source_type == HYLE_BUD_MULTI_REFERENCE ||
+			int is_ref = (ref_d->type == HYLE_FIELD_REFERENCE ||
+			              ref_d->type == HYLE_FIELD_MULTI_REFERENCE ||
 			              ref_d->ref_source != NULL);
 			if (!is_ref || !ref_d->writable)
 				continue;
@@ -284,7 +284,7 @@ bud_node *hyle_bud_form(
 				const char *val = "";
 				if (d->qm_type == BUD_QM_VSTR && vstr_val) {
 					val = vstr_val;
-				} else if (record && d->size > 0 && d->source_type != HYLE_BUD_DERIVED) {
+				} else if (record && d->size > 0 && d->type != HYLE_FIELD_DERIVED) {
 					val = (const char *)record + d->offset;
 				}
 

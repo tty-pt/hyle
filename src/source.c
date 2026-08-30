@@ -916,7 +916,6 @@ int hyle_source_query(
 {
 	registry_entry_t *e;
 	hyle_row_set_t input;
-	hyle_ctx_t *ctx;
 	uint32_t total32 = 0;
 	hyle_field_filter_t *local_filters = NULL;
 	hyle_query_t local_query;
@@ -933,9 +932,6 @@ int hyle_source_query(
 		        source_id);
 		return -1;
 	}
-	ctx = hyle_ctx_new();
-	if (!ctx)
-		return -1;
 
 	/* Build a mutable copy of the query for pre-filter mutation */
 	local_query = *query;
@@ -943,7 +939,6 @@ int hyle_source_query(
 		local_filters = malloc(
 		        query->filter_count * sizeof(hyle_field_filter_t));
 		if (!local_filters) {
-			hyle_ctx_free(ctx);
 			return -1;
 		}
 		memcpy(local_filters, query->filters,
@@ -977,7 +972,7 @@ int hyle_source_query(
 	memset(out, 0, sizeof(*out));
 
 	hyle_apply_view(
-	        ctx, &input, &local_query, e->fields, e->field_count, out,
+	        NULL, &input, &local_query, e->fields, e->field_count, out,
 	        &total32);
 
 	if (q_hd)
@@ -987,7 +982,6 @@ int hyle_source_query(
 	if (fts_hd)
 		qmap_close(fts_hd);
 	free(local_filters);
-	hyle_ctx_free(ctx);
 
 	if (total_out)
 		*total_out = (size_t)total32;

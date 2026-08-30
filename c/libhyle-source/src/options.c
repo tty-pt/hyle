@@ -36,9 +36,9 @@ int hyle_source_get_display_field(const char *dataset_id, char *out, size_t sz)
 	if (def && def->fields && def->field_count > 0) {
 		for (size_t i = 0; i < def->field_count; i++) {
 			const hyle_source_field_t *f = &def->fields[i];
-			if (strcmp(f->name, "id") == 0 || f->type == HYLE_SOURCE_FIELD_INVERSE)
+			if (strcmp(f->name, "id") == 0 || f->type == HYLE_FIELD_INVERSE)
 				continue;
-			if (f->type == HYLE_SOURCE_FIELD_STRING || f->type == HYLE_SOURCE_FIELD_NULLABLE_STRING) {
+			if (f->type == HYLE_FIELD_STRING || f->type == HYLE_FIELD_NULLABLE_STRING) {
 				snprintf(out, sz, "%s", f->name);
 				return 0;
 			}

@@ -639,7 +639,7 @@ bud_node *hyle_bud_filter_scoped(
 
 	if (d) {
 		target = d->ref_source ? d->ref_source : d->key;
-		multi = (d->source_type == HYLE_BUD_MULTI_REFERENCE);
+		multi = (d->type == HYLE_FIELD_MULTI_REFERENCE || d->is_array != 0);
 	} else if (e && e->target) {
 		target = e->target;
 		multi = e->multi;
@@ -745,7 +745,7 @@ int hyle_bud_picker_view_collect_scoped(
 
 	for (const hyle_schema_desc_t *d = schema; d && d->key && ri < HYLE_BUD_PICKER_MAX_FIELDS; d++) {
 		const char *target = d->ref_source;
-		int is_ref = (d->source_type == HYLE_BUD_REFERENCE || d->source_type == HYLE_BUD_MULTI_REFERENCE || target != NULL);
+		int is_ref = (d->type == HYLE_FIELD_REFERENCE || d->type == HYLE_FIELD_MULTI_REFERENCE || target != NULL);
 		if (!is_ref || !target || !target[0])
 			continue;
 		if (d->writable == 0 && d->kind >= 3)
@@ -756,7 +756,7 @@ int hyle_bud_picker_view_collect_scoped(
 		memset(e, 0, sizeof(*e));
 		e->key = d->key;
 		e->target = target;
-		e->multi = (d->source_type == HYLE_BUD_MULTI_REFERENCE);
+		e->multi = (d->type == HYLE_FIELD_MULTI_REFERENCE || d->is_array != 0);
 		e->allow_add = (d->allow_add && target) ? hyle_source_is_creatable(target) : 0;
 		e->per_page = 15;
 

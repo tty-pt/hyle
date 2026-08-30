@@ -609,9 +609,9 @@ bud_node *hyle_bud_filter_field(
 	const char *filter_style)
 {
 	switch (type) {
-	case HYLE_BUD_BOOL:
+	case HYLE_FIELD_BOOL:
 		return hyle_bud_boolean_checkbox(key, label, current_value);
-	case HYLE_BUD_MULTI_REFERENCE:
+	case HYLE_FIELD_MULTI_REFERENCE:
 		if (options && noptions > 0) {
 			if (filter_style && strcmp(filter_style, "dropdown") == 0)
 				return hyle_bud_multiselect_field(
@@ -621,7 +621,7 @@ bud_node *hyle_bud_filter_field(
 			        key, label, current_value, options, noptions);
 		}
 		return hyle_bud_text_input(key, label, current_value);
-	case HYLE_BUD_REFERENCE:
+	case HYLE_FIELD_REFERENCE:
 		if (options && noptions > 0) {
 			if (filter_style &&
 			    strcmp(filter_style, "dropdown") == 0)
